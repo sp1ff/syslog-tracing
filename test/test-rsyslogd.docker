@@ -1,0 +1,29 @@
+# -*- A dockerfile that hosts a test rsyslogd   mode: dockerfile -*-
+from debian:stable-slim as base
+
+COPY start-rsyslog /start-rsyslog
+
+ARG DEBIAN_FRONTEND
+ENV DEBIAN_FRONTEND=${DEBIAN_FRONTEND:-noninteractive}
+
+RUN set -ex && apt-get update && apt-get install -y --no-install-recommends \
+    # Wow... this *is* slim \
+    ca-certificates \
+    # For my own sanity \
+    less procps gdb sudo info vim net-tools man rsyslog \
+    # the rsyslog daemon \
+    rsyslog && \
+    # tidy-up \
+    apt-get clean && \
+    rm -rf /tmp/* /var/tmp/* && \
+    # set the timezone to civilization (i.e. the Pacific) \
+    ln -fs /usr/share/zoneinfo/US/Pacific /etc/localtime && \
+    dpkg-reconfigure -f noninteractive tzdata && \
+    # Configure rsyslogd \
+    cp /etc/rsyslog.conf /etc/rsyslog.conf.orig && \
+    sed -i '/^#module(load="imudp")/s/^#//' /etc/rsyslog.conf && \
+    sed -i '/^#input(type="imudp" port="514")/s/^#//' /etc/rsyslog.conf && \
+    sed -i '/^#module(load="imtcp")/s/^#//' /etc/rsyslog.conf && \
+    sed -i '/^#input(type="imtcp" port="514")/s/^#//' /etc/rsyslog.conf
+
+

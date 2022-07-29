@@ -1,0 +1,390 @@
+#!/usr/bin/env bash
+VERSION=0.0.1
+
+###########################################################################
+#                             start the container                         #
+###########################################################################
+
+# Start the test server, optionally enter the running container in a bash
+# shell.
+function start()
+{
+    local start_enter
+    local start_help
+    local start_port=5514
+    local start_prev_option
+    local start_optarg
+    local start_option
+    for start_option
+    do
+        # If the previous option required an argument, assign it now.
+        if test -n "$start_prev_option"; then
+            eval $start_prev_option=\$start_option
+            start_prev_option=
+            continue
+        fi
+
+        # Parse out the argument option, in $start_option
+        case $start_option in
+            *=?*) start_optarg=$(expr "X$start_option" : '[^=]*=\(.*\)') ;;
+            *=)   start_optarg= ;;
+            *)    start_optarg=yes ;;
+        esac
+
+        # Handle options here
+        case $boot_option in
+            -E | --ent | --ente | --enter)
+                start_enter=yes;;
+            -h | --help | --hel)
+                start_help=yes;;
+            -P | --po | --por | --port)
+                start_prev_option=start_port;;
+            -P=* | --po=* | --por=* | --port=*)
+                start_port=$start_optarg;;
+            *)
+                echo "unrecognized option or argument: \`$start_option'
+Try \`$0 start --help' for more information" >&2;
+                set +e;
+                exit 2;;
+        esac
+    done
+
+    if test "$start_help" == "yes"; then
+        cat <<EOF
+$0 start builds & starts a container hosting an rsyslog daemon for testing purposes.
+
+Usage: $0 start
+
+Options:
+
+           -h, --help: print this usage message & exit with status zero
+          -E, --enter: enter the container upon startup (don't run it in the background)
+  -P PORT,--port=PORT: the test rsyslog daemon will listen for TCP & UDP connections
+                       on port 514 in the container; use this option to specify the port
+                       to which that will be mapped on localhost [default: 5514]
+EOF
+    fi
+
+    # Shutdown the running container, if there is one:
+    local container=$(docker ps|grep tracing-syslog-test-server|awk -e '{print $1}')
+    if test -n "${container}"; then
+        echo "Stopping the extant container..."
+        docker stop ${container}
+        echo "Stopping the extant container...done."
+    fi
+    
+
+    docker build -t tracing-syslog-test-server:latest -f test-rsyslogd.docker .
+    local docker_args="-it"
+    docker_args="$docker_args --ulimit core=-1"
+    docker_args="$docker_args -p127.0.0.1:${start_port}:514"
+    docker_args="$docker_args -p127.0.0.1:${start_port}:514/udp"
+
+    local cmd="/bin/bash"
+    if test -z "$start_enter"; then
+        cmd="/start-rsyslog"
+        docker_args="-d ${docker_args}"
+    fi
+
+    cmd="docker run ${docker_args} tracing-syslog-test-server:latest ${cmd}"
+    exec $cmd
+}
+
+# Stop an extant container.
+function stop()
+{
+    local stop_help
+    local stop_prev_option
+    local stop_optarg
+    local stop_option
+    for stop_option
+    do
+        # If the previous option required an argument, assign it now.
+        if test -n "$stop_prev_option"; then
+            eval $stop_prev_option=\$stop_option
+            stop_prev_option=
+            continue
+        fi
+
+        # Parse out the argument option, in $stop_option
+        case $stop_option in
+            *=?*) stop_optarg=$(expr "X$stop_option" : '[^=]*=\(.*\)') ;;
+            *=)   stop_optarg= ;;
+            *)    stop_optarg=yes ;;
+        esac
+
+        # Handle options here
+        case $stop_option in
+            -h | --help | --hel)
+                stop_help=yes;;
+            *)
+                echo "unrecognized option or argument: \`$stop_option'
+Try \`$0 enter --help' for more information" >&2;
+                set +e;
+                exit 2;;
+        esac
+    done
+
+    if test "$stop_help" == "yes"; then
+        cat <<EOF
+$0 stop will stop a running container hosting the test rsyslog server. The
+container ID will be detrmined automatically (i.e. this won't work if you're
+running more than one at a time).
+
+Usage: $0 stop
+
+Options:
+
+           -h, --help: print this usage message & exit with status zero
+EOF
+        exit 0
+    fi
+
+    cmd="docker stop $(docker ps|grep tracing-syslog-test-server|awk -e '{print $1}')"
+    exec $cmd
+}
+
+# Enter an already running container hosting the test rsyslog daemon at a bash
+# shell.
+function enter()
+{
+    local enter_help
+    local enter_prev_option
+    local enter_optarg
+    local enter_option
+    for enter_option
+    do
+        # If the previous option required an argument, assign it now.
+        if test -n "$enter_prev_option"; then
+            eval $enter_prev_option=\$enter_option
+            enter_prev_option=
+            continue
+        fi
+
+        # Parse out the argument option, in $enter_option
+        case $enter_option in
+            *=?*) enter_optarg=$(expr "X$enter_option" : '[^=]*=\(.*\)') ;;
+            *=)   enter_optarg= ;;
+            *)    enter_optarg=yes ;;
+        esac
+
+        # Handle options here
+        case $enter_option in
+            -h | --help | --hel)
+                enter_help=yes;;
+            *)
+                echo "unrecognized option or argument: \`$enter_option'
+Try \`$0 enter --help' for more information" >&2;
+                set +e;
+                exit 2;;
+        esac
+    done
+
+    if test "$enter_help" == "yes"; then
+        cat <<EOF
+$0 enter will enter a running container hosting the test rsyslog server. The
+container ID will be detrmined automatically (i.e. this won't work if you're
+running more than one at a time).
+
+Usage: $0 enter
+
+Options:
+
+           -h, --help: print this usage message & exit with status zero
+EOF
+        exit 0
+    fi
+
+    cmd="docker exec -it $(docker ps|grep tracing-syslog-test-server|awk -e '{print $1}') /bin/bash"
+    exec $cmd
+}
+
+# Copy the container's syslog to the host.
+function get_syslog()
+{
+    local get_dest=container.syslog
+    local get_help
+    local get_nargs=0
+    local get_prev_option
+    local get_optarg
+    local get_option
+    for get_option
+    do
+        # If the previous option required an argument, assign it now.
+        if test -n "$get_prev_option"; then
+            eval $get_prev_option=\$get_option
+            get_prev_option=
+            get_nargs=$(($get_nargs+1))
+            continue
+        fi
+
+        # Parse out the argument option, in $get_option
+        case $get_option in
+            *=?*) get_optarg=$(expr "X$get_option" : '[^=]*=\(.*\)') ;;
+            *=)   get_optarg= ;;
+            *)    get_optarg=yes ;;
+        esac
+
+        # Handle options here
+        case $get_option in
+            -h | --he | --hel | --help)
+                get_help=yes;;
+            -*)
+                echo "unrecognized option or argument: \`$get_option'
+Try \`$0 enter --help' for more information" >&2;
+                set +e;
+                exit 2;;
+            *)
+                get_dest=$get_option;
+                get_nargs=$(($get_nargs+1));
+                break;;
+        esac
+    done
+
+    if test "$get_help" == "yes"; then
+        cat <<EOF
+$0 get-syslog will copy `/var/log/syslog` from the running container to the host.
+
+Usage: $0 get-syslog [DEST]
+
+Options:
+
+    -h, --help: print this usage message & exit with status zero
+
+Arugments:
+
+    DEST: destination on the host [default: container.syslog]
+EOF
+        exit 0
+    fi
+
+    shift $get_nargs
+    if test $# -gt 0; then
+            cat >&2 <<EOF
+Unexpected trailing arguments $@.
+Try '$0 get-syslog --help' for more information.
+EOF
+            exit 2
+    fi
+
+    container=$(docker ps|grep tracing-syslog-test-server|awk -e '{print $1}')
+    cmd="docker cp ${container}:/var/log/syslog ${get_dest}"
+    exec $cmd
+}
+
+###########################################################################
+
+cmd=
+help=
+nargs=0
+prev_option=
+# 0 :=> quiet, 1 :=> normal, 2 :=> verbose
+verbosity=1
+version=
+for option
+do
+   # If the previous option required an argument, assign it now.
+    if test -n "$prev_option"; then
+        eval $prev_option=$option
+        prev_option=
+        nargs=$(($nargs+1))
+        continue
+    fi
+
+    # Parse out the argument option in $option, if present.
+    case $option in
+        *=?*) optarg=$(expr "X$option" : '[^=]*=(.*)') ;;
+        *=)   optarg= ;;
+        *)    optarg=yes ;;
+    esac
+
+    # Options are handled here:
+    case $option in
+        -h | --he | --hel | --help)
+            help=yes;;
+        -q | --qu | --qui | --quie | --quiet)
+            nargs=$(($nargs+1));
+            verbosity=0;;
+        -V|--verb|--verbo|--verbos|--verbose)
+            nargs=$(($nargs+1));
+            verbosity=2;;
+        -v|--vers|--versi|--versio|--version)
+            version=yes;;
+        -*)
+            cat >&2 <<EOF
+Unrecognized option '$option'.
+Try '$0 --help' for more information.
+EOF
+            exit 2;;
+        *)
+            cmd=$option;
+            break;;    esac
+done
+
+if test -n "$help"; then
+    cat <<EOF
+$0 -- start (or enter) a Docker container hosting an rsyslog server
+
+Usage:
+
+    $0 [OPTION...] [COMMAND] [OPTION...]
+
+Options:
+
+    -h, --help      Print this message on stdout & exit with status zero
+    -q, --quiet     Produce no output (other than error messages)
+    -v, --version   Print this script's version on stdout & exit with status zero
+    -V, --verbose   Produce more verbose output to stdout
+
+Commands:
+
+    start:      start a container hosting an rsyslog daemon for testing purposes
+    stop:       stop a running container
+    enter:      enter an extant container for troubleshooting or debugging purposes
+    get-syslog: copy the syslog from the container to the host
+
+Say $0 COMMAND --help for a usage message for the given sub-command.
+
+EOF
+    exit 0
+fi
+
+if test -n "$version"; then
+    cat <<EOF
+$0 $VERSION
+EOF
+    exit 0
+fi
+
+exec 8>&1
+case $verbosity
+in
+    0)
+        exec 8>/dev/null;;
+    2)
+        set -x;
+esac
+
+shift $nargs
+if test -z "$cmd"; then
+    cmd=start
+else
+    shift
+fi
+
+set -e
+case $cmd in
+    start|run)
+        start $@;;
+    stop)
+        stop $@;;
+    enter)
+        enter $@;;
+    get-syslog|copy)
+        get_syslog $@;;
+    *)
+        echo "unrecognized sub-command: \`$ce_cmd'
+Try \`$0 --help' for more information" >&2;
+        set +e;
+        exit 2;;
+esac

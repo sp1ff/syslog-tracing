@@ -1,0 +1,6 @@
+#!/bin/bash
+set -ex
+# Just run rsyslogd in the foreground
+/usr/sbin/rsyslogd -n
+# Give Docker a foreground process
+#tail -f /dev/null
