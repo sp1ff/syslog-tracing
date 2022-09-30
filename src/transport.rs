@@ -12,6 +12,7 @@
 //
 // You should have received a copy of the GNU General Public License along with mpdpopm.  If not,
 // see <http://www.gnu.org/licenses/>.
+
 //! The syslog transport layer.
 //!
 //! This module defines the [`Transport`] trait that all implementations must support, as well
@@ -38,6 +39,8 @@
 use crate::error::{Error, Result};
 
 use backtrace::Backtrace;
+
+use std::{os::unix::net::UnixDatagram, path::Path};
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 //                                      transport mechanisms                                      //
@@ -85,5 +88,41 @@ impl Transport for UdpTransport {
             source: Box::new(err),
             back: Backtrace::new(),
         })
+    }
+}
+
+/// Sending syslog messages via Unix socket.
+#[cfg(target_os = "linux")]
+pub struct UnixSocket {
+    socket: UnixDatagram,
+}
+
+#[cfg(target_os = "linux")]
+impl UnixSocket {
+    /// Construct a [`Transport`] implementation via Unix sockets at `path`.
+    pub fn new<P: AsRef<Path>>(path: P) -> Result<UnixSocket> {
+        let sock = UnixDatagram::unbound().map_err(|err| Error::Transport {
+            source: Box::new(err),
+            back: Backtrace::new(),
+        })?;
+        sock.connect(path).map_err(|err| Error::Transport {
+            source: Box::new(err),
+            back: Backtrace::new(),
+        })?;
+        Ok(UnixSocket { socket: sock })
+    }
+    pub fn try_default() -> Result<UnixSocket> {
+        UnixSocket::new("/dev/log")
+    }
+}
+
+#[cfg(target_os = "linux")]
+impl Transport for UnixSocket {
+    fn send(&self, buf: &[u8]) -> Result<usize> {
+        self.socket.send(buf).map_err(|err| Error::Transport {
+            source: Box::new(err),
+            back: Backtrace::new(),
+        })?;
+        Ok(buf.len())
     }
 }

@@ -12,6 +12,7 @@
 //
 // You should have received a copy of the GNU General Public License along with mpdpopm.  If not,
 // see <http://www.gnu.org/licenses/>.
+
 //! Layer implementations
 
 use crate::error::Result;
@@ -231,16 +232,16 @@ mod prototyping {
         ));
     }
 
+    use tracing::{debug, error, info, trace, warn};
+    use tracing_subscriber::{
+        layer::SubscriberExt, // Needed to get `with()`
+        registry::Registry,
+    };
+
     #[test]
     #[cfg(feature = "rsyslogd")]
-    fn test_tracing() {
-        use tracing::{debug, error, info, trace, warn};
-        use tracing_subscriber::{
-            layer::SubscriberExt, // Needed to get `with()`
-            registry::Registry,
-        };
-
-        // Exercise `defualt()`, just to be sure it compiles.
+    fn test_tracing_via_udp() {
+        // Exercise `default()`, just to be sure it compiles.
         let _subscriber = Registry::default().with(Layer::default().unwrap());
 
         // Setup the real subsriber...
