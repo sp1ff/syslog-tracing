@@ -19,7 +19,8 @@
 type StdResult<T, E> = std::result::Result<T, E>;
 
 /// Both RFCs [5424] & [3164] define twenty-four facilities for messages. The enumeration values
-/// duplicate the constants defined in `<syslog.h>`.
+/// duplicate the constants defined in `<syslog.h>`, albeit multiplied by 8 for convenience in
+/// forming headers.
 ///
 /// [5424]: https://datatracker.ietf.org/doc/html/rfc5424
 /// [3164]: https://datatracker.ietf.org/doc/html/rfc3164
@@ -50,6 +51,20 @@ pub enum Facility {
     LOG_AUTHPRIV = 10 << 3,
     /// ftp daemon
     LOG_FTP = 11 << 3,
+    /// NTP subsystem
+    LOG_NTP = 12 << 3,
+    /// Log Audit: Various operating systems have been found to utilize Facilities 4, 10, 13 and 14
+    /// for security/authorization, audit, and alert messages which seem to be
+    /// similar. [1](https://datatracker.ietf.org/doc/html/rfc3164#section-5.3), pg. 9
+    LOG_AUDIT = 13 << 3,
+    /// Log Alert: Various operating systems have been found to utilize Facilities 4, 10, 13 and 14
+    /// for security/authorization, audit, and alert messages which seem to be
+    /// similar. [1](https://datatracker.ietf.org/doc/html/rfc3164#section-5.3), pg. 9
+    LOG_ALERT = 14 << 3,
+    /// clock daemon: Various operating systems have been found to utilize both Facilities 9 and 15
+    /// for clock (cron/at)
+    /// messages. [1](https://datatracker.ietf.org/doc/html/rfc3164#section-5.3), pg. 9
+    LOG_CLOCK = 15 << 3,
     /// reserved for local use
     LOG_LOCAL0 = 16 << 3,
     /// reserved for local use
@@ -92,6 +107,10 @@ impl std::fmt::Display for Facility {
                 Facility::LOG_CRON => "LOG_CRON",
                 Facility::LOG_AUTHPRIV => "LOG_AUTHPRIV",
                 Facility::LOG_FTP => "LOG_FTP",
+                Facility::LOG_NTP => "LOG_NTP",
+                Facility::LOG_AUDIT => "LOG_AUDIT",
+                Facility::LOG_ALERT => "LOG_ALERT",
+                Facility::LOG_CLOCK => "LOG_CLOCK",
                 Facility::LOG_LOCAL0 => "LOG_LOCAL0",
                 Facility::LOG_LOCAL1 => "LOG_LOCAL1",
                 Facility::LOG_LOCAL2 => "LOG_LOCAL2",

@@ -2,14 +2,14 @@
 #+DESCRIPTION: tracing layer that writes to syslog
 #+AUTHOR: Michael Herstine
 #+EMAIL: sp1ff@pobox.com
-#+DATE: <2022-07-29 Fri 08:55>
+#+DATE: <2022-10-04 Tue 17:42>
 #+AUTODATE: t
 #+OPTIONS: toc:nil org-md-headline-style:setext *:t ^:nil
 #+STARTUP: overview
 
 * Introduction
 
-[[https://github.com/sp1ff/syslog-tracing][syslog-tracing]] is a [[https://docs.rs/tracing-subscriber/latest/tracing_subscriber/index.html][tracing-subscriber]] [[https://docs.rs/tracing-subscriber/latest/tracing_subscriber/layer/trait.Layer.html][Layer]] implementation that sends [[https://docs.rs/tracing/latest/tracing/index.html][tracing]][[https://docs.rs/tracing/latest/tracing/struct.Event.html][Event]]s & [[https://docs.rs/tracing/latest/tracing/struct.Span.html][Span]]s to a [[https://en.wikipedia.org/wiki/Syslog][syslog]] [[https://en.wikipedia.org/wiki/Daemon_(computing)][daemon]].
+[[https://github.com/sp1ff/syslog-tracing/tracing-rfc-5424][tracing-rfc-5424]] is a [[https://docs.rs/tracing-subscriber/latest/tracing_subscriber/index.html][tracing-subscriber]] [[https://docs.rs/tracing-subscriber/latest/tracing_subscriber/layer/trait.Layer.html][Layer]] implementation that sends [[https://docs.rs/tracing/latest/tracing/index.html][tracing]][[https://docs.rs/tracing/latest/tracing/struct.Event.html][Event]]s & [[https://docs.rs/tracing/latest/tracing/struct.Span.html][Span]]s to a [[https://en.wikipedia.org/wiki/Syslog][syslog]] [[https://en.wikipedia.org/wiki/Daemon_(computing)][daemon]].
 
 The [[https://docs.rs/tracing/latest/tracing/index.html][tracing]] crate is a "scoped, structured logging and diagnostics system". It provides a superset of the features offered by logging crates such as [[https://docs.rs/fern/latest/fern/index.html][fern]] and [[https://docs.rs/log4rs/latest/log4rs/][log4rs]] particularly suited to asynchronous programming. Of particular interest is that it makes a very clear distinction between producers of events & their consumers ([[https://docs.rs/tracing/0.1.34/tracing/trait.Subscriber.html][Subscriber]]s, in [[https://docs.rs/tracing/latest/tracing/index.html][tracing]] parlance); so much so that the [[https://docs.rs/tracing/latest/tracing/index.html][tracing]] crate provides no support for _consuming_ events, other than the definition of the [[https://docs.rs/tracing/0.1.34/tracing/trait.Subscriber.html][Subscriber]] trait.
 
@@ -18,14 +18,14 @@ The [[https://docs.rs/tracing-subscriber/0.3.11/tracing_subscriber/index.html][t
 This could easily give rise to a geometric explosion in types: =LogFile=, =LogFileWithStdout=, =LogFileWithLogStash=, =LogFileWithLogStashAndStdout=, and so forth. The idea behind [[https://docs.rs/tracing-subscriber/0.3.11/tracing_subscriber/layer/trait.Layer.html][Layer]]s is to decompose each facet of event handling into its own type, and then "stack them up" in a [[https://docs.rs/tracing/0.1.34/tracing/trait.Subscriber.html][Subscriber]] as the application developer desires. In a sense, this design pattern is reminiscent of [[https://en.wikipedia.org/wiki/Andrei_Alexandrescu][Alexanrescu]]'s concept of [[https://erdani.com/publications/traits.html][traits classes]] in C++-- a way of decomposing functionality into orthogonal facets and composing them linearly rather than geometrically.
 * Prerequisites
 
-Other than [[https://github.com/tokio-rs/tracing][tracing]] and a syslog daemon, none. [[https://github.com/sp1ff/syslog-tracing][syslog-tracing]] was developed against rust 1.58.1, although [[https://github.com/tokio-rs/tracing][tracing]] requires 1.49.
+Other than [[https://github.com/tokio-rs/tracing][tracing]] and a syslog daemon, none. [[https://github.com/sp1ff/syslog-tracing/tracing-rfc-5424][tracing-rfc-5424]] was developed against rust 1.58.1, although [[https://github.com/tokio-rs/tracing][tracing]] requires 1.49.
 * Usage
 
 I haven't submitted  [[https://github.com/sp1ff/syslog-tracing][syslog-tracing]] to [[https://crates.io][crates.io]] yet, so you'll have to pull it directly from here:
 
 #+BEGIN_SRC toml
   [dependencies]
-  syslog-tracing = { git = "https://github.com/sp1ff/syslog-tracing" }
+  tracing-rfc-5424 = { git = "https://github.com/sp1ff/syslog-tracing" }
 #+END_SRC
 ** Examples
 
@@ -33,13 +33,17 @@ Then, to talk to a local syslog daemon over UDP:
 
 #+BEGIN_SRC Rust
   use tracing::info;
+  use tracing_rfc_5424::{
+      layer::Layer, rfc5424::Rfc5424, tracing::TrivialTracingFormatter, transport::UdpTransport,
+  };
   use tracing_subscriber::{
       layer::SubscriberExt, // Needed to get `with()`
       registry::Registry,
   };
 
   // Setup the real subsriber...
-  let subscriber = Registry::default().with(Layer::default());
+  let subscriber = Registry::default()
+      .with(Layer::<Rfc5424, TrivialTracingFormatter, UdpTransport>::try_default().unwrap());
   // and install it.
   let _guard = tracing::subscriber::set_default(subscriber);
 
@@ -51,15 +55,13 @@ Then, to talk to a local syslog daemon over UDP:
 
 This is a preliminary release; the version number (0.x) is intended to convey that. Additional features to be implemented:
 
-  - RFC 3164 compliance
-  - TCP and Unix domain socket transports
-  - Windows support
   - more support for mapping from [[https://github.com/tokio-rs/tracing][tracing]] primitves (Events & Spans) to syslog messages (today, the crate simply uses the "message" field in Events)
   - supporting MSGID for RFC 5424 formatting
   - support structured data for RFC 5424 formatting
-  - and many,  many more (maybe I'll start opening issues to track 'em)
+  - Windows support
+  - and many, many more (maybe I'll start opening issues to track 'em)
 
-The name =tracing-syslog= seemed more natural to me, but has been already claimed (by an empty project) on [[https://crates.io][crates.io]]. I've reached-out to the author, but haven't heard anything back.
+The name =tracing-syslog= seemed most natural to me, but has been already claimed (by an empty project) on [[https://crates.io][crates.io]]. I've reached-out to the author, but haven't heard anything back. I moved on to =syslog-tracing=, but before I published the crate, that was claimed, [[https://crates.io/crates/syslog-tracing][too]]. I wound-up re-factoring the repo into a library package & a test package and I've taken the opportunity to rename the library crate to =tracing-rfc-5424= (after the RFC governing the modern syslog message format).
 
 This project got started when I needed to log to a local syslog daemon from an app that uses [[https://github.com/tokio-rs/tracing][tracing]]. I started down the same path recommended by [[https://users.rust-lang.org/u/endsofthreads/summary][David Barsky]] in this [[https://users.rust-lang.org/][rust-lang]] [[https://users.rust-lang.org/t/using-tracing-with-syslog/64499][thread]]: "Hey, there's this [[https://github.com/Geal/rust-syslog][syslog]] [[https://docs.rs/syslog/latest/syslog/][crate]], why not just call it from a Layer you write?"
 

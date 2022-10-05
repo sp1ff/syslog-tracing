@@ -3,6 +3,6 @@
 check:
 	rm -f /tmp/syslog.tmp
 	./test-server start
-	cargo test --features=rsyslogd
+	./test-server run-tests
 	./test-server get-syslog /tmp/syslog.tmp
 	./check-syslog-tracing /tmp/syslog.tmp && ./test-server stop

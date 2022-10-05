@@ -12,6 +12,7 @@
 //
 // You should have received a copy of the GNU General Public License along with mpdpopm.  If not,
 // see <http://www.gnu.org/licenses/>.
+
 //! RFC [5424]-compliant syslog message formatting
 //!
 //! [5424]: https://datatracker.ietf.org/doc/html/rfc5424
@@ -19,6 +20,7 @@
 //! [`Rfc5424`] is a [`Formatter`] that produces syslog messages according to RFC 5424.
 
 use crate::{
+    byte_utils::bytes_from_os_str,
     error::{Error, Result},
     facility::{Facility, Level},
     formatter::Formatter,
@@ -30,13 +32,6 @@ use backtrace::Backtrace;
 use chrono::prelude::*;
 
 type StdResult<T, E> = std::result::Result<T, E>;
-
-/// Produce a [`Vec`] of bytes from an [`OsString`] on Unix.
-#[cfg(unix)]
-fn bytes_from_os_str(s: std::ffi::OsString) -> Vec<u8> {
-    use std::os::unix::ffi::OsStringExt;
-    s.into_vec()
-}
 
 /// A [`Vec<u8>`] instance with the additional constraint that it must be less than 256 bytes
 /// of ASCII.
@@ -180,6 +175,10 @@ mod test {
         let x: &[u8] = b"0123456789012345678901234567890123456789012345678";
         let v: Vec<u8> = x.into();
         assert!(AppName::new(v).is_err());
+
+        let x: &[u8] = b"udp-test";
+        let v: Vec<u8> = x.into();
+        assert!(AppName::new(v).is_ok());
     }
 }
 

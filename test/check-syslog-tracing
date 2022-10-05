@@ -1,5 +1,0 @@
-#!/usr/bin/env bash
-# I first thought to use `[[` with regular expressions, but an hour later, and with a tension
-# headache, I've given up. Don't ever use regular expressions in Bash.
-let nlogs=$(grep -E '^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) [0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2} [-a-zA-Z0-9_]+ [-a-zA-Z0-9_]+\[[0-9]+\] Hello, 世界!' $1|wc -l)
-test $nlogs -eq 5 || exit 1

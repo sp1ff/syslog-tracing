@@ -12,6 +12,7 @@
 //
 // You should have received a copy of the GNU General Public License along with mpdpopm.  If not,
 // see <http://www.gnu.org/licenses/>.
+
 //! A [`tracing-subscriber`] [`Layer`] implementation for sending [`tracing`] [`Span`]s and
 //! [`Event`]s to a [`syslog`] [daemon]
 //!
@@ -73,13 +74,18 @@
 //!
 //! ```rust
 //! use tracing::info;
-//! use syslog_tracing::layer::Layer;
+//! use tracing_rfc_5424::{
+//!     layer::Layer,
+//!     rfc5424::Rfc5424,
+//!     tracing::TrivialTracingFormatter,
+//!     transport::UdpTransport,
+//! };
 //! use tracing_subscriber::registry::Registry;
 //! use tracing_subscriber::layer::SubscriberExt; // Needed to get `with()`
 //!
 //! // The default configuration is to format syslog messages as per RFC 5424
 //! // and to send them via UDP to port 514 on the localhost.
-//! let subscriber = Registry::default().with(Layer::default().unwrap());
+//! let subscriber = Registry::default().with(Layer::<Rfc5424, TrivialTracingFormatter, UdpTransport>::try_default().unwrap());
 //!
 //! info!("Hello, world!");
 //! ```
@@ -99,8 +105,8 @@
 //!
 //! ```no_run
 //! use tracing::info;
-//! use syslog_tracing::layer::Layer;
-//! use syslog_tracing::transport::UdpTransport;
+//! use tracing_rfc_5424::layer::Layer;
+//! use tracing_rfc_5424::transport::UdpTransport;
 //! use tracing_subscriber::registry::Registry;
 //! use tracing_subscriber::layer::SubscriberExt; // Needed to get `with()`
 //!
@@ -114,10 +120,13 @@
 //!
 //! Will send the syslog packet to a daemon on port 5514 on some.other.host.
 
+#[path = "byte-utils.rs"]
+mod byte_utils;
 pub mod error;
 pub mod facility;
 pub mod formatter;
 pub mod layer;
+pub mod rfc3164;
 pub mod rfc5424;
 pub mod tracing;
 pub mod transport;

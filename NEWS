@@ -1,0 +1,16 @@
+syslog-tracing News -- history of user-visible changes         -*- outline -*-
+
+* 0.0 builds
+
+** 0.0.2 build
+
+Complete re-factor into a workspace with two packages:
+
+    - tracing-rfc-5424: this is the library package, now with support for:
+      - TCP as well as UDP sockets
+      - Unix socket support (datagram & streaming)
+      - RFC 3164
+    - test-rfc-5424: test the package in a Docker container
+** 0.0.1 build
+
+Initial release.

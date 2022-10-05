@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+/udp-test
+/tcp-test
+/unix-socket-test

@@ -18,9 +18,10 @@
 use crate::error::Result;
 use crate::facility::Level;
 use crate::formatter::Formatter;
+use crate::rfc3164::Rfc3164;
 use crate::rfc5424::Rfc5424;
 use crate::tracing::{TracingFormatter, TrivialTracingFormatter};
-use crate::transport::{Transport, UdpTransport};
+use crate::transport::{Transport, UdpTransport, UnixSocket};
 
 use tracing::Event;
 use tracing_subscriber::layer::Context;
@@ -42,13 +43,23 @@ fn default_level_mapping(level: &tracing::Level) -> Level {
 }
 
 impl Layer<Rfc5424, TrivialTracingFormatter, UdpTransport> {
-    pub fn default() -> Result<Self> {
-        let transport = UdpTransport::local()?;
+    pub fn try_default() -> Result<Self> {
         Ok(Layer {
             formatter: Rfc5424::default(),
             map_level: Box::new(default_level_mapping),
             tracing_formatter: TrivialTracingFormatter,
-            transport: transport,
+            transport: UdpTransport::local()?,
+        })
+    }
+}
+
+impl Layer<Rfc3164, TrivialTracingFormatter, UnixSocket> {
+    pub fn try_default() -> Result<Self> {
+        Ok(Layer {
+            formatter: Rfc3164::try_default()?,
+            map_level: Box::new(default_level_mapping),
+            tracing_formatter: TrivialTracingFormatter,
+            transport: UnixSocket::try_default()?,
         })
     }
 }
@@ -230,31 +241,5 @@ mod prototyping {
             "{}",
             "Hello, world!"
         ));
-    }
-
-    use tracing::{debug, error, info, trace, warn};
-    use tracing_subscriber::{
-        layer::SubscriberExt, // Needed to get `with()`
-        registry::Registry,
-    };
-
-    #[test]
-    #[cfg(feature = "rsyslogd")]
-    fn test_tracing_via_udp() {
-        // Exercise `default()`, just to be sure it compiles.
-        let _subscriber = Registry::default().with(Layer::default().unwrap());
-
-        // Setup the real subsriber...
-        let subscriber = Registry::default().with(Layer::with_transport(
-            UdpTransport::new("127.0.0.1:5514").unwrap(),
-        ));
-        // and install it.
-        let _guard = tracing::subscriber::set_default(subscriber);
-
-        trace!("Hello, 世界!");
-        debug!("Hello, 世界!");
-        info!("Hello, 世界!");
-        warn!("Hello, 世界!");
-        error!("Hello, 世界!");
     }
 }

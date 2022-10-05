@@ -16,6 +16,8 @@
 
 use backtrace::Backtrace;
 
+use std::path::PathBuf;
+
 /// [tracing-syslog](crate) error type
 ///
 /// [tracing-syslog](crate) eschews libraries like [thiserror], [anyhow] & [Snafu] in favor of
@@ -27,6 +29,15 @@ use backtrace::Backtrace;
 /// [Snafu]: https://docs.rs/snafu/latest/snafu
 #[non_exhaustive]
 pub enum Error {
+    BadRfc3164Hostname {
+        name: Vec<u8>,
+        back: Backtrace,
+    },
+    BadRfc3164IpAddress,
+    BadRfc3164Tag {
+        name: Vec<u8>,
+        back: Backtrace,
+    },
     BadRfc5424AppName {
         name: Vec<u8>,
         back: Backtrace,
@@ -55,6 +66,14 @@ pub enum Error {
         name: &'static str,
         back: Backtrace,
     },
+    NoRfc3164Hostname {
+        source: Box<dyn std::error::Error + Send + Sync + 'static>,
+        back: Backtrace,
+    },
+    NoRfc3164Tag {
+        pathb: PathBuf,
+        back: Backtrace,
+    },
     /// General transport layer error
     Transport {
         source: Box<dyn std::error::Error + Send + Sync + 'static>,
@@ -69,6 +88,32 @@ impl std::fmt::Display for Error {
     #[allow(unreachable_patterns)]
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
+            Error::BadRfc3164Hostname { .. } => {
+                write!(
+                    f,
+                    "The provided or discovered hostname is not compliant with RFC 3164"
+                )
+            }
+            Error::BadRfc3164IpAddress => {
+                write!(
+                    f,
+                    "The provided or discovered IP address is not compliant with RFC 3164"
+                )
+            }
+            Error::BadRfc3164Tag { name, .. } => {
+                write!(
+                    f,
+                    "The provided or discovered tag ({}) is not compliant with RFC 3164",
+                    String::from_utf8_lossy(&name)
+                )
+            }
+            Error::BadRfc5424AppName { name, .. } => {
+                write!(
+                    f,
+                    "The provided or discovered app name ({}) is not compliant with RFC 5424",
+                    String::from_utf8_lossy(&name)
+                )
+            }
             Error::BadRfc5424Hostname { .. } => {
                 write!(
                     f,
@@ -81,10 +126,34 @@ impl std::fmt::Display for Error {
                     "The provided or discovered IP address is not compliant with RFC 5424"
                 )
             }
+            Error::BadRfc5424ProcId { .. } => {
+                write!(
+                    f,
+                    "The provided or discovered process ID is not compliant with RFC 5424"
+                )
+            }
+            Error::NoExecutable { .. } => {
+                write!(f, "Could not deduce the executable name")
+            }
+            Error::NoHostname { .. } => {
+                write!(f, "Could not deduce the hostname")
+            }
             Error::NoMessageField { name, .. } => write!(
                 f,
                 "Event '{}' had no message field, and so was not forwarded to a syslog daemon",
                 name
+            ),
+            Error::NoRfc3164Hostname { source, back: _ } => {
+                write!(
+                    f,
+                    "Error deducing an RFC 3164-compliant hostname: {}",
+                    source
+                )
+            }
+            Error::NoRfc3164Tag { pathb, .. } => write!(
+                f,
+                "Could not deduce an RFC 3164-compliant tag from {:?}",
+                pathb
             ),
             Error::Transport { source, .. } => write!(f, "Transport error: {:?}", source),
             _ => write!(f, "Other tracing-sylog error"),
@@ -99,10 +168,19 @@ impl std::fmt::Debug for Error {
     #[allow(unreachable_patterns)]
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            Error::BadRfc5424Hostname { name: _, back } => write!(f, "{}\n{:?}", self, back),
+            Error::BadRfc3164Hostname { name: _, back } => write!(f, "{}\n{:#?}", self, back),
+            Error::BadRfc3164IpAddress => write!(f, "{}", self),
+            Error::BadRfc3164Tag { name: _, back } => write!(f, "{}\n{:#?}", self, back),
+            Error::BadRfc5424AppName { name: _, back } => write!(f, "{}\n{:#?}", self, back),
+            Error::BadRfc5424Hostname { name: _, back } => write!(f, "{}\n{:#?}", self, back),
             Error::BadRfc5424IpAddress => write!(f, "{}", self),
-            Error::NoMessageField { name: _, back } => write!(f, "{}\n{:?}", self, back),
-            Error::Transport { source: _, back } => write!(f, "{}\n{:?}", self, back),
+            Error::BadRfc5424ProcId { name: _, back } => write!(f, "{}\n{:#?}", self, back),
+            Error::NoExecutable { source: _, back } => write!(f, "{}\n{:#?}", self, back),
+            Error::NoHostname { source: _, back } => write!(f, "{}\n{:#?}", self, back),
+            Error::NoMessageField { name: _, back } => write!(f, "{}\n{:#?}", self, back),
+            Error::NoRfc3164Hostname { source: _, back } => write!(f, "{}\n{:#?}", self, back),
+            Error::NoRfc3164Tag { pathb: _, back } => write!(f, "{}\n{:#?}", self, back),
+            Error::Transport { source: _, back } => write!(f, "{}\n{:#?}", self, back),
             err => write!(f, "tracing-syslog error: {}", err),
         }
     }

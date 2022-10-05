@@ -32,7 +32,7 @@ function start()
         esac
 
         # Handle options here
-        case $boot_option in
+        case $start_option in
             -E | --ent | --ente | --enter)
                 start_enter=yes;;
             -h | --help | --hel)
@@ -66,7 +66,7 @@ EOF
     fi
 
     # Shutdown the running container, if there is one:
-    local container=$(docker ps|grep tracing-syslog-test-server|awk -e '{print $1}')
+    local container=$(docker ps|grep start-rsyslog|awk -e '{print $1}')
     if test -n "${container}"; then
         echo "Stopping the extant container..."
         docker stop ${container}
@@ -74,7 +74,6 @@ EOF
     fi
     
 
-    docker build -t tracing-syslog-test-server:latest -f test-rsyslogd.docker .
     local docker_args="-it"
     docker_args="$docker_args --ulimit core=-1"
     docker_args="$docker_args -p127.0.0.1:${start_port}:514"
@@ -272,6 +271,12 @@ EOF
     exec $cmd
 }
 
+function run_tests {
+    cmd="docker exec $(docker ps|grep tracing-syslog-test-server|awk -e '{print $1}') /run-tests"
+    exec $cmd
+    
+}
+
 ###########################################################################
 
 cmd=
@@ -342,6 +347,7 @@ Commands:
     stop:       stop a running container
     enter:      enter an extant container for troubleshooting or debugging purposes
     get-syslog: copy the syslog from the container to the host
+    run-tests:  execute the test programs in the container
 
 Say $0 COMMAND --help for a usage message for the given sub-command.
 
@@ -382,6 +388,8 @@ case $cmd in
         enter $@;;
     get-syslog|copy)
         get_syslog $@;;
+    run-tests)
+        run_tests $@;;
     *)
         echo "unrecognized sub-command: \`$ce_cmd'
 Try \`$0 --help' for more information" >&2;

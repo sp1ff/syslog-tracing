@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# I first thought to use `[[` with regular expressions, but an hour later, and with a tension
+# headache, I've given up. Don't ever use regular expressions in Bash.
+set -x
+nlogs=$(grep -E 'udp-test\[[0-9]+\] Hello, 世界!' $1|wc -l)
+if test $nlogs -ne 5; then
+    echo "udp-test failed." >&2
+    exit 1
+fi
+
+nlogs=$(grep -E '你好, TCP socket.' $1|wc -l)
+if test $nlogs -ne 5; then
+    echo "tcp-test failed." >&2
+    exit 1
+fi
+
+nlogs=$(grep -E 'unixsockettest\[[0-9]+\]: 你好, Unix domain socket.' $1|wc -l)
+if test $nlogs -ne 5; then
+    echo "unix-socket-test failed." >&2
+    exit 1
+fi
+
+echo "All tests passed. 🍻"
+

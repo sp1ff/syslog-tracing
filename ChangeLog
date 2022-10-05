@@ -1,0 +1,16 @@
+2022-10-04  Michael Herstine  <sp1ff@pobox.com>
+
+	Major re-factor into two packages within a single workspace.
+	    - tracing-rfc-5424: the library crate that now includes:
+	      - support for RFC 3164
+	      - support for TCP sockets as well as streaming over Unix
+	        sockets
+	    - test-rfc-5424: all the test code
+
+2022-09-29  Michael Herstine  <sp1ff@pobox.com>
+
+	Added Unix socket (datagram) support. No tests; pending re-factor.
+
+2022-07-29  Michael Herstine  <sp1ff@pobox.com>
+
+	Initial commit of the syslog-tracing crate.
