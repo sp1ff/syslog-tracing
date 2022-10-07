@@ -1,3 +1,9 @@
+2022-10-07  Michael Herstine  <sp1ff@pobox.com>
+
+	Tidying commit:
+	    - `Rfc5424Hostname` :=> `Hostname`
+	    - preparation for publication on crates.io
+
 2022-10-06  Michael Herstine  <sp1ff@pobox.com>
 
 	Moved to a per-module error scheme.

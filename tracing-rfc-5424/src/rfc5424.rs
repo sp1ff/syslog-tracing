@@ -120,13 +120,13 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 /// A [`Vec<u8>`] instance with the additional constraint that it must be less than 256 bytes
 /// of ASCII.
-pub struct Rfc5424Hostname(Vec<u8>);
+pub struct Hostname(Vec<u8>);
 
-impl Rfc5424Hostname {
+impl Hostname {
     /// An RFC 5424-compliant hostname is at most 255 bytes of ASCII
-    pub fn new(bytes: Vec<u8>) -> Result<Rfc5424Hostname> {
+    pub fn new(bytes: Vec<u8>) -> Result<Hostname> {
         if bytes.is_ascii() && bytes.len() < 256 {
-            Ok(Rfc5424Hostname(bytes))
+            Ok(Hostname(bytes))
         } else {
             Err(Error::BadHostname {
                 name: bytes,
@@ -136,7 +136,7 @@ impl Rfc5424Hostname {
     }
 }
 
-impl std::default::Default for Rfc5424Hostname {
+impl std::default::Default for Hostname {
     /// Attempt to figure-out an RFC [5424]-compliant hostname.
     ///
     /// The order of preference for the contents of the HOSTNAME field is as follows:
@@ -162,31 +162,31 @@ impl std::default::Default for Rfc5424Hostname {
                 source: Box::new(err),
                 back: Backtrace::new(),
             })
-            // vvv :=> StdResult<Rfc5424Hostname, Error>
-            .and_then(|hn| Rfc5424Hostname::new(bytes_from_os_str(hn)))
-            // vvv will return the Ok(Rfc5424Hostname), or call the closure :=>
-            // StdResult<Rfc5424Hostname, Error>
+            // vvv :=> StdResult<Hostname, Error>
+            .and_then(|hn| Hostname::new(bytes_from_os_str(hn)))
+            // vvv will return the Ok(Hostname), or call the closure :=>
+            // StdResult<Hostname, Error>
             .or_else(|_err| {
                 let ip: StdResult<std::net::IpAddr, Error> =
                     local_ip_address::local_ip().map_err(|_| Error::BadIpAddress);
                 ip.and_then(|ip| {
                     let buf = ip.to_string().into_bytes();
                     if buf.len() < 256 {
-                        Ok(Rfc5424Hostname(buf))
+                        Ok(Hostname(buf))
                     } else {
                         Err(Error::BadIpAddress)
                     }
                 })
-            }) // :=> StdResult<Rfc5424Hostname, Error>
-            .or_else::<Error, _>(|_| Ok(Rfc5424Hostname(b"-".to_vec())))
+            }) // :=> StdResult<Hostname, Error>
+            .or_else::<Error, _>(|_| Ok(Hostname(b"-".to_vec())))
             .unwrap()
     }
 }
 
-impl std::convert::TryFrom<String> for Rfc5424Hostname {
+impl std::convert::TryFrom<String> for Hostname {
     type Error = Error;
     fn try_from(x: String) -> StdResult<Self, Self::Error> {
-        Rfc5424Hostname::new(x.into_bytes())
+        Hostname::new(x.into_bytes())
     }
 }
 
@@ -316,7 +316,7 @@ impl std::default::Default for ProcId {
 /// [5424]: https://datatracker.ietf.org/doc/html/rfc5424
 pub struct Rfc5424 {
     facility: Facility,
-    hostname: Rfc5424Hostname,
+    hostname: Hostname,
     appname: AppName,
     pid: ProcId,
     with_bom: bool,
@@ -326,7 +326,7 @@ impl std::default::Default for Rfc5424 {
     fn default() -> Self {
         Rfc5424 {
             facility: Facility::LOG_USER,
-            hostname: Rfc5424Hostname::default(),
+            hostname: Hostname::default(),
             appname: AppName::default(),
             pid: ProcId::default(),
             with_bom: false,
@@ -343,12 +343,12 @@ impl Rfc5424Builder {
         self.imp.facility = facility;
         self
     }
-    pub fn hostname(mut self, hostname: Rfc5424Hostname) -> Self {
+    pub fn hostname(mut self, hostname: Hostname) -> Self {
         self.imp.hostname = hostname;
         self
     }
     pub fn hostname_as_string(mut self, hostname: String) -> Result<Self> {
-        self.imp.hostname = Rfc5424Hostname::try_from(hostname)?;
+        self.imp.hostname = Hostname::try_from(hostname)?;
         Ok(self)
     }
     pub fn appname_as_string(mut self, appname: String) -> Result<Self> {
