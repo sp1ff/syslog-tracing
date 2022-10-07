@@ -12,21 +12,23 @@
 //
 // You should have received a copy of the GNU General Public License along with mpdpopm.  If not,
 // see <http://www.gnu.org/licenses/>.
+
 //! syslog formatting primitives.
 //!
 //! This module defines the [`Formatter`] trait.
 
-use crate::{error::Result, facility::Level, tracing::TracingFormatter};
+use crate::{facility::Level, tracing::TracingFormatter};
 
 use chrono::prelude::*;
 
 /// Operations all formatters must support.
 pub trait Formatter {
+    type Error: std::error::Error;
     fn format_event(
         &self,
         level: Level,
         event: &tracing::Event,
         fmtr: &impl TracingFormatter,
         timestamp: Option<DateTime<Utc>>,
-    ) -> Result<Vec<u8>>;
+    ) -> std::result::Result<Vec<u8>, Self::Error>;
 }

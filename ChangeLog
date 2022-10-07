@@ -1,3 +1,7 @@
+2022-10-06  Michael Herstine  <sp1ff@pobox.com>
+
+	Moved to a per-module error scheme.
+
 2022-10-04  Michael Herstine  <sp1ff@pobox.com>
 
 	Major re-factor into two packages within a single workspace.

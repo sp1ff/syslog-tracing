@@ -122,7 +122,6 @@
 
 #[path = "byte-utils.rs"]
 mod byte_utils;
-pub mod error;
 pub mod facility;
 pub mod formatter;
 pub mod layer;

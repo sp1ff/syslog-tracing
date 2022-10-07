@@ -21,7 +21,6 @@
 
 use crate::{
     byte_utils::bytes_from_os_str,
-    error::{Error, Result},
     facility::{Facility, Level},
     formatter::Formatter,
     tracing::TracingFormatter,
@@ -33,6 +32,92 @@ use chrono::prelude::*;
 
 type StdResult<T, E> = std::result::Result<T, E>;
 
+////////////////////////////////////////////////////////////////////////////////////////////////////
+//                                       module error type                                        //
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/// module error type
+#[non_exhaustive]
+pub enum Error {
+    BadAppName {
+        name: Vec<u8>,
+        back: Backtrace,
+    },
+    BadHostname {
+        name: Vec<u8>,
+        back: Backtrace,
+    },
+    BadIpAddress,
+    BadProcId {
+        name: Vec<u8>,
+        back: Backtrace,
+    },
+    /// Failed to format the `tracing` Event
+    BadTracingFormat {
+        source: Box<dyn std::error::Error>,
+        back: Backtrace,
+    },
+    /// Failed to fetch the current executable (via std::env)
+    NoExecutable {
+        source: Box<dyn std::error::Error + Send + Sync + 'static>,
+        back: Backtrace,
+    },
+    /// Failed to fetch hostname (via libc)
+    NoHostname {
+        source: Box<dyn std::error::Error + Send + Sync + 'static>,
+        back: Backtrace,
+    },
+}
+
+impl std::fmt::Display for Error {
+    // `Error` is non-exhaustive so that adding variants won't be a breaking change to our
+    // callers. That means the compiler won't catch us if we miss a variant here, so we
+    // always include a `_` arm.
+    #[allow(unreachable_patterns)]
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Error::BadAppName { name, .. } => {
+                write!(f, "{:?} is not an RFC 5424-compliant app name", name)
+            }
+            Error::BadHostname { name, .. } => {
+                write!(f, "{:?} is not an RFC 5424-compliant host name", name)
+            }
+            Error::BadIpAddress => write!(f, "Failed to obtain a local IP address"),
+            Error::BadTracingFormat { source, .. } => {
+                write!(f, "While formatting an Event or Span, got {}", source)
+            }
+            Error::NoExecutable { source, .. } => write!(
+                f,
+                "While extracting the name of the current process, got {}",
+                source
+            ),
+            Error::NoHostname { source, .. } => write!(
+                f,
+                "While extracting the name of the current host, got {}",
+                source
+            ),
+            _ => write!(f, "RRC 5424 error: {}", self),
+        }
+    }
+}
+
+impl std::fmt::Debug for Error {
+    #[allow(unreachable_patterns)]
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            _ => write!(f, "RFC 5424 error: {}", self),
+        }
+    }
+}
+
+impl std::error::Error for Error {}
+
+pub type Result<T> = std::result::Result<T, Error>;
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+//                                         utility types                                          //
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
 /// A [`Vec<u8>`] instance with the additional constraint that it must be less than 256 bytes
 /// of ASCII.
 pub struct Rfc5424Hostname(Vec<u8>);
@@ -43,7 +128,7 @@ impl Rfc5424Hostname {
         if bytes.is_ascii() && bytes.len() < 256 {
             Ok(Rfc5424Hostname(bytes))
         } else {
-            Err(Error::BadRfc5424Hostname {
+            Err(Error::BadHostname {
                 name: bytes,
                 back: Backtrace::new(),
             })
@@ -83,13 +168,13 @@ impl std::default::Default for Rfc5424Hostname {
             // StdResult<Rfc5424Hostname, Error>
             .or_else(|_err| {
                 let ip: StdResult<std::net::IpAddr, Error> =
-                    local_ip_address::local_ip().map_err(|_| Error::BadRfc5424IpAddress);
+                    local_ip_address::local_ip().map_err(|_| Error::BadIpAddress);
                 ip.and_then(|ip| {
                     let buf = ip.to_string().into_bytes();
                     if buf.len() < 256 {
                         Ok(Rfc5424Hostname(buf))
                     } else {
-                        Err(Error::BadRfc5424IpAddress)
+                        Err(Error::BadIpAddress)
                     }
                 })
             }) // :=> StdResult<Rfc5424Hostname, Error>
@@ -120,7 +205,7 @@ impl AppName {
         if bytes.is_ascii() && bytes.len() < 49 {
             Ok(AppName(bytes))
         } else {
-            Err(Error::BadRfc5424AppName {
+            Err(Error::BadAppName {
                 name: bytes,
                 back: Backtrace::new(),
             })
@@ -196,7 +281,7 @@ impl ProcId {
         if bytes.is_ascii() && bytes.len() < 129 {
             Ok(ProcId(bytes))
         } else {
-            Err(Error::BadRfc5424ProcId {
+            Err(Error::BadProcId {
                 name: bytes,
                 back: Backtrace::new(),
             })
@@ -292,6 +377,7 @@ impl Rfc5424 {
 }
 
 impl Formatter for Rfc5424 {
+    type Error = Error;
     fn format_event(
         &self,
         level: Level,
@@ -326,7 +412,11 @@ impl Formatter for Rfc5424 {
             buf.put_u8(0xbf as u8);
         }
 
-        fmtr.format_event(event, &mut buf)?;
+        fmtr.format_event(event, &mut buf)
+            .map_err(|err| Error::BadTracingFormat {
+                source: Box::new(err),
+                back: Backtrace::new(),
+            })?;
         Ok(buf)
     }
 }

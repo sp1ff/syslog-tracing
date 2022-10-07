@@ -2,7 +2,7 @@
 #+DESCRIPTION: tracing layer that writes to syslog
 #+AUTHOR: Michael Herstine
 #+EMAIL: sp1ff@pobox.com
-#+DATE: <2022-10-04 Tue 17:42>
+#+DATE: <2022-10-06 Thu 18:31>
 #+AUTODATE: t
 #+OPTIONS: toc:nil org-md-headline-style:setext *:t ^:nil
 #+STARTUP: overview
@@ -25,7 +25,7 @@ I haven't submitted  [[https://github.com/sp1ff/syslog-tracing][syslog-tracing]]
 
 #+BEGIN_SRC toml
   [dependencies]
-  tracing-rfc-5424 = { git = "https://github.com/sp1ff/syslog-tracing" }
+  tracing-rfc-5424 = { git = "https://github.com/sp1ff/syslog-tracing", branch = "build-0.0.2" }
 #+END_SRC
 ** Examples
 
@@ -53,9 +53,9 @@ Then, to talk to a local syslog daemon over UDP:
 #+END_SRC
 * Status and Roadmap
 
-This is a preliminary release; the version number (0.x) is intended to convey that. Additional features to be implemented:
+This is a preliminary release; the version number (0.0.x) is intended to convey that. Additional features to be implemented:
 
-  - more support for mapping from [[https://github.com/tokio-rs/tracing][tracing]] primitves (Events & Spans) to syslog messages (today, the crate simply uses the "message" field in Events)
+  - more support for mapping from [[https://github.com/tokio-rs/tracing][tracing]] primitves (Events & Spans) to syslog messages (today, the crate simply uses the "message" field in Events while ignoring Spans)
   - supporting MSGID for RFC 5424 formatting
   - support structured data for RFC 5424 formatting
   - Windows support
@@ -67,4 +67,4 @@ This project got started when I needed to log to a local syslog daemon from an a
 
 I started down that path and found that that crate's =Logger= abstraction takes =&mut self= on all it's methods, which makes it difficult to use in a =Layer= implementation (which only gets =&self=). I opened an issue [[https://github.com/Geal/rust-syslog/issues/68][here]]. "No problem," I thought, "the transport piece is easy. I can still make make use of the underlying components. Hmmmm.... what the heck are RFCs 5424 & 3164? The crate gives no guidance on which to use, so I need to understand them. Oh... [[https://docs.rs/syslog/latest/syslog/struct.Formatter5424.html][Formatter5424]] represents the hostname as a =String=, well having read the RFC I know that's not right... oh the heck with it."
 
-Bugs, comments, problems, PRs, feature requests &c welcome at [[mailto:sp1ff@pobox.com][sp1ff@pobox.com]] and in the [[https://github.com/sp1ff/syslog-tracing/issues][issues]].
+Bugs, comments, problems, criticism, PRs, feature requests &c welcome at [[mailto:sp1ff@pobox.com][sp1ff@pobox.com]] and in the [[https://github.com/sp1ff/syslog-tracing/issues][issues]].

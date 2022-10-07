@@ -13,19 +13,95 @@
 // You should have received a copy of the GNU General Public License along with mpdpopm.  If not,
 // see <http://www.gnu.org/licenses/>.
 
-//! Layer implementations
+//! [`Layer`] implementations.
+//!
+//! [`Layer`]: https://docs.rs/tracing-subscriber/latest/tracing_subscriber/layer/trait.Layer.html
 
-use crate::error::Result;
-use crate::facility::Level;
-use crate::formatter::Formatter;
-use crate::rfc3164::Rfc3164;
-use crate::rfc5424::Rfc5424;
-use crate::tracing::{TracingFormatter, TrivialTracingFormatter};
-use crate::transport::{Transport, UdpTransport, UnixSocket};
+use crate::{
+    facility::Level,
+    formatter::Formatter,
+    rfc3164::Rfc3164,
+    rfc5424::Rfc5424,
+    tracing::{TracingFormatter, TrivialTracingFormatter},
+    transport::{Transport, UdpTransport, UnixSocket},
+};
 
+use backtrace::Backtrace;
 use tracing::Event;
 use tracing_subscriber::layer::Context;
 
+////////////////////////////////////////////////////////////////////////////////////////////////////
+//                                       module error type                                        //
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/// layer error type
+#[non_exhaustive]
+pub enum Error {
+    /// Formatting layer error
+    Format {
+        source: Box<dyn std::error::Error>,
+        back: Backtrace,
+    },
+    /// Transport layer error
+    Transport {
+        source: crate::transport::Error,
+        back: Backtrace,
+    },
+}
+
+impl std::fmt::Display for Error {
+    // `Error` is non-exhaustive so that adding variants won't be a breaking change to our
+    // callers. That means the compiler won't catch us if we miss a variant here, so we
+    // always include a `_` arm.
+    #[allow(unreachable_patterns)]
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Error::Format { source, .. } => {
+                write!(f, "While formatting a Span or an Event, got {}", source)
+            }
+            Error::Transport { source, .. } => {
+                write!(f, "While sending a syslog message, got {}", source)
+            }
+            _ => write!(f, "syslog transport layer error"),
+        }
+    }
+}
+
+impl std::fmt::Debug for Error {
+    #[allow(unreachable_patterns)]
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Error::Format { source: _, back } => write!(f, "{}\n{:#?}", self, back),
+            Error::Transport { source: _, back } => write!(f, "{}\n{:#?}", self, back),
+            _ => write!(f, "{}", self),
+        }
+    }
+}
+
+impl std::convert::From<crate::transport::Error> for Error {
+    fn from(err: crate::transport::Error) -> Self {
+        Error::Transport {
+            source: err,
+            back: Backtrace::new(),
+        }
+    }
+}
+
+impl std::error::Error for Error {}
+
+pub type Result<T> = std::result::Result<T, Error>;
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+//                                          struct Layer                                          //
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/// A [`tracing-subscriber`]-compliant [`Layer`] implementation that will send [`Event`]s &
+/// [`Span`]s to a syslog daemon.
+///
+/// [`tracing-subscriber`]: https://docs.rs/tracing-subscriber/latest/tracing_subscriber/index.html
+/// [`Layer`]: https://docs.rs/tracing-subscriber/latest/tracing_subscriber/layer/trait.Layer.html
+/// [`Span`]: https://docs.rs/tracing/0.1.35/tracing/struct.Span.html
+/// [`Event`]: https://docs.rs/tracing/0.1.35/tracing/struct.Event.html
 pub struct Layer<F1: Formatter, F2: TracingFormatter, T: Transport> {
     formatter: F1,
     map_level: Box<dyn Fn(&tracing::Level) -> Level + Send + Sync>,
@@ -43,6 +119,8 @@ fn default_level_mapping(level: &tracing::Level) -> Level {
 }
 
 impl Layer<Rfc5424, TrivialTracingFormatter, UdpTransport> {
+    /// Attempt to construct a Layer that will send RFC5424-compliant syslog messages via UDP to
+    /// port 514 on localhost
     pub fn try_default() -> Result<Self> {
         Ok(Layer {
             formatter: Rfc5424::default(),
@@ -54,9 +132,14 @@ impl Layer<Rfc5424, TrivialTracingFormatter, UdpTransport> {
 }
 
 impl Layer<Rfc3164, TrivialTracingFormatter, UnixSocket> {
+    /// Attempt to construct a Layer that will send RFC3164-compliant syslog messages via datagrams
+    /// to the Unix socket at `/dev/log` on localhost
     pub fn try_default() -> Result<Self> {
         Ok(Layer {
-            formatter: Rfc3164::try_default()?,
+            formatter: Rfc3164::try_default().map_err(|err| Error::Format {
+                source: Box::new(err),
+                back: Backtrace::new(),
+            })?,
             map_level: Box::new(default_level_mapping),
             tracing_formatter: TrivialTracingFormatter,
             transport: UnixSocket::try_default()?,
@@ -65,6 +148,7 @@ impl Layer<Rfc3164, TrivialTracingFormatter, UnixSocket> {
 }
 
 impl<T: Transport> Layer<Rfc5424, TrivialTracingFormatter, T> {
+    /// Construct a Layer that will send RFC5424-compliant messages via transport `transport`
     pub fn with_transport(transport: T) -> Layer<Rfc5424, TrivialTracingFormatter, T> {
         Layer {
             formatter: Rfc5424::default(),
@@ -89,8 +173,16 @@ where
                 event,
                 &self.tracing_formatter,
                 None,
-            )
-            .and_then(|v| self.transport.send(&v))
+            ) // :=> StdResult<Vec<u8>, <F1 as Formatter>::Error>
+            .map_err(|err| Error::Format {
+                source: Box::new(err),
+                back: Backtrace::new(),
+            })
+            .and_then(|v| {
+                self.transport
+                    .send(&v) // :=> StdResult<u32, transport::Error>
+                    .map_err(|err| err.into())
+            })
             .unwrap_or_else(|_| {
                 ::tracing::error!("tracing-subscriber failed");
                 0

@@ -16,7 +16,7 @@
 //! The syslog transport layer.
 //!
 //! This module defines the [`Transport`] trait that all implementations must support, as well
-//! as the UDP & Unix socket implementations. Other implementations are in the works.
+//! as the UDP, TCP & Unix socket (datagram as well as stream) implementations.
 //!
 //! # Examples
 //!
@@ -43,8 +43,6 @@
 //! assert!(transpo.is_err()); // no such socket, after all
 //! ```
 
-use crate::error::{Error, Result};
-
 use backtrace::Backtrace;
 
 use std::{
@@ -54,9 +52,62 @@ use std::{
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-//                                      transport mechanisms                                      //
+//                                       module error type                                        //
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
+/// syslog transport layer errors
+#[non_exhaustive]
+pub enum Error {
+    /// I/O error
+    Io {
+        source: std::io::Error,
+        back: Backtrace,
+    },
+}
+
+impl std::convert::From<std::io::Error> for Error {
+    fn from(err: std::io::Error) -> Self {
+        Error::Io {
+            source: err,
+            back: Backtrace::new(),
+        }
+    }
+}
+
+impl std::fmt::Display for Error {
+    // `Error` is non-exhaustive so that adding variants won't be a breaking change to our
+    // callers. That means the compiler won't catch us if we miss a variant here, so we
+    // always include a `_` arm.
+    #[allow(unreachable_patterns)]
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Error::Io { source, .. } => write!(f, "I/O error: {}", source),
+            _ => write!(f, "syslog transport layer error"),
+        }
+    }
+}
+
+impl std::fmt::Debug for Error {
+    #[allow(unreachable_patterns)]
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Error::Io { source: _, back } => write!(f, "{}\n{:#?}", self, back),
+            _ => write!(f, "{}", self),
+        }
+    }
+}
+
+impl std::error::Error for Error {}
+
+pub type Result<T> = std::result::Result<T, Error>;
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+//                                        Transport trait                                         //
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+// N.B. This is perhaps not the best abstraction; a `Transport` implementation should not merely
+// take any slice of byte and ship it off to a syslog daemon; there should be some kind of
+// requirement that it be a proper syslog message, in either of RFC 5424 or 3164.
 /// Operations all transport layers must support.
 pub trait Transport {
     /// Send a slice of byte on this transport mechanism.
@@ -76,15 +127,9 @@ impl UdpTransport {
     /// Construct a [`Transport`] implementation via UDP at `addr`.
     pub fn new<A: std::net::ToSocketAddrs>(addr: A) -> Result<UdpTransport> {
         // Bind to any available port on localhost...
-        let socket = std::net::UdpSocket::bind("127.0.0.1:0").map_err(|err| Error::Transport {
-            source: Box::new(err),
-            back: Backtrace::new(),
-        })?;
+        let socket = std::net::UdpSocket::bind("127.0.0.1:0")?;
         // and connect to the syslog daemon at `addr`:
-        socket.connect(addr).map_err(|err| Error::Transport {
-            source: Box::new(err),
-            back: Backtrace::new(),
-        })?;
+        socket.connect(addr)?;
         Ok(UdpTransport { socket })
     }
     /// Construct a [`Transport`] implementation via UDP at localhost:514
@@ -95,10 +140,7 @@ impl UdpTransport {
 
 impl Transport for UdpTransport {
     fn send(&self, buf: &[u8]) -> Result<usize> {
-        self.socket.send(buf).map_err(|err| Error::Transport {
-            source: Box::new(err),
-            back: Backtrace::new(),
-        })
+        self.socket.send(buf).map_err(|err| err.into())
     }
 }
 
@@ -111,10 +153,7 @@ impl TcpTransport {
     /// Construct a [`Transport`] implementation via TCP at `addr`.
     pub fn new<A: std::net::ToSocketAddrs>(addr: A) -> Result<TcpTransport> {
         Ok(TcpTransport {
-            socket: TcpStream::connect(addr).map_err(|err| Error::Transport {
-                source: Box::new(err),
-                back: Backtrace::new(),
-            })?,
+            socket: TcpStream::connect(addr)?,
         })
     }
     /// Construct a [`Transport`] implementation via TCP at localhost:514
@@ -143,18 +182,9 @@ impl Transport for TcpTransport {
         //
         // Reddit discussion here:
         // <https://www.reddit.com/r/rust/comments/v2uxze/getting_a_mutable_reference_to_self_in_a_method/>
-        writer.write(buf).map_err(|err| Error::Transport {
-            source: Box::new(err),
-            back: Backtrace::new(),
-        })?;
-        writer.write(&[10]).map_err(|err| Error::Transport {
-            source: Box::new(err),
-            back: Backtrace::new(),
-        })?;
-        writer.flush().map_err(|err| Error::Transport {
-            source: Box::new(err),
-            back: Backtrace::new(),
-        })?;
+        writer.write(buf)?;
+        writer.write(&[10])?;
+        writer.flush()?;
 
         return Ok(buf.len());
     }
@@ -170,14 +200,8 @@ pub struct UnixSocket {
 impl UnixSocket {
     /// Construct a [`Transport`] implementation via Unix datagram sockets at `path`.
     pub fn new<P: AsRef<Path>>(path: P) -> Result<UnixSocket> {
-        let sock = UnixDatagram::unbound().map_err(|err| Error::Transport {
-            source: Box::new(err),
-            back: Backtrace::new(),
-        })?;
-        sock.connect(path).map_err(|err| Error::Transport {
-            source: Box::new(err),
-            back: Backtrace::new(),
-        })?;
+        let sock = UnixDatagram::unbound()?;
+        sock.connect(path)?;
         Ok(UnixSocket { socket: sock })
     }
     pub fn try_default() -> Result<UnixSocket> {
@@ -188,11 +212,7 @@ impl UnixSocket {
 #[cfg(target_os = "linux")]
 impl Transport for UnixSocket {
     fn send(&self, buf: &[u8]) -> Result<usize> {
-        let cb_written = self.socket.send(buf).map_err(|err| Error::Transport {
-            source: Box::new(err),
-            back: Backtrace::new(),
-        })?;
-        Ok(cb_written)
+        Ok(self.socket.send(buf)?)
     }
 }
 
@@ -207,10 +227,7 @@ impl UnixSocketStream {
     /// Construct a [`Transport`] implementation via Unix sockets at `path`.
     pub fn new<P: AsRef<Path>>(path: P) -> Result<UnixSocketStream> {
         Ok(UnixSocketStream {
-            socket: UnixStream::connect(path).map_err(|err| Error::Transport {
-                source: Box::new(err),
-                back: Backtrace::new(),
-            })?,
+            socket: UnixStream::connect(path)?,
         })
     }
     pub fn try_default() -> Result<UnixSocket> {
@@ -221,35 +238,28 @@ impl UnixSocketStream {
 #[cfg(target_os = "linux")]
 impl Transport for UnixSocketStream {
     fn send(&self, buf: &[u8]) -> Result<usize> {
-        use std::io::Write; // Trick I learned from tracing-subscriber.
-                            // <https://docs.rs/tracing-subscriber/0.3.11/src/tracing_subscriber/fmt/fmt_layer.rs.html#867-903>
-                            // The problem is that `std::io::Write()` takes a `&mut self` and we just have a
-                            // `&self`. Therefore if I naively call:
-                            //
-                            //     self.socket.write_all(buf)
-                            //
-                            // the compiler will complain.
-                            //
-                            // The workaround depends upon the fact that `Write` is implemented both on `UnixStream` and
-                            // `&UnixStream`. So: I declare a mutable variable `writer` whose type is `&UnixStream`...
+        use std::io::Write;
+
+        // Trick I learned from tracing-subscriber.
+        // <https://docs.rs/tracing-subscriber/0.3.11/src/tracing_subscriber/fmt/fmt_layer.rs.html#867-903>
+        // The problem is that `std::io::Write()` takes a `&mut self` and we just have a
+        // `&self`. Therefore if I naively call:
+        //
+        //     self.socket.write_all(buf)
+        //
+        // the compiler will complain.
+        //
+        // The workaround depends upon the fact that `Write` is implemented both on `UnixStream` and
+        // `&UnixStream`. So: I declare a mutable variable `writer` whose type is `&UnixStream`...
         let mut writer: &UnixStream = &self.socket;
         // and invoke `write_all()` on _that_ receiver, whose type is `&mut &UnixStream`--
         // i.e. "self" will be `&UnixStream` not `UnixStream`.
         //
         // Reddit discussion here:
         // <https://www.reddit.com/r/rust/comments/v2uxze/getting_a_mutable_reference_to_self_in_a_method/>
-        writer.write(buf).map_err(|err| Error::Transport {
-            source: Box::new(err),
-            back: Backtrace::new(),
-        })?;
-        writer.write(&[10]).map_err(|err| Error::Transport {
-            source: Box::new(err),
-            back: Backtrace::new(),
-        })?;
-        writer.flush().map_err(|err| Error::Transport {
-            source: Box::new(err),
-            back: Backtrace::new(),
-        })?;
+        writer.write(buf)?;
+        writer.write(&[10])?;
+        writer.flush()?;
 
         return Ok(buf.len());
     }

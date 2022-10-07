@@ -22,7 +22,6 @@
 
 use crate::{
     byte_utils::bytes_from_os_str,
-    error::{Error, Result},
     facility::{Facility, Level},
     formatter::Formatter,
     tracing::TracingFormatter,
@@ -32,6 +31,101 @@ use backtrace::Backtrace;
 use chrono::prelude::*;
 
 type StdResult<T, E> = std::result::Result<T, E>;
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+//                                       module error type                                        //
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/// syslog transport layer errors
+#[non_exhaustive]
+pub enum Error {
+    /// Non-compliant hostname provided
+    BadHostname { name: Vec<u8>, back: Backtrace },
+    /// Failed to retrieve an IP address in lieu of a hostname
+    BadIpAddress {
+        source: local_ip_address::Error,
+        back: Backtrace,
+    },
+    /// Non-compliant tag provided
+    BadTag { name: Vec<u8>, back: Backtrace },
+    /// Failed to format the `tracing` Event
+    BadTracingFormat {
+        source: Box<dyn std::error::Error>,
+        back: Backtrace,
+    },
+    /// I/O error
+    Io {
+        source: std::io::Error,
+        back: Backtrace,
+    },
+    /// Unable to deduce a compliant tag
+    NoTag {
+        pathb: std::path::PathBuf,
+        back: Backtrace,
+    },
+}
+
+impl std::convert::From<std::io::Error> for Error {
+    fn from(err: std::io::Error) -> Self {
+        Error::Io {
+            source: err,
+            back: Backtrace::new(),
+        }
+    }
+}
+
+impl std::fmt::Display for Error {
+    // `Error` is non-exhaustive so that adding variants won't be a breaking change to our
+    // callers. That means the compiler won't catch us if we miss a variant here, so we
+    // always include a `_` arm.
+    #[allow(unreachable_patterns)]
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Error::BadHostname { name, .. } => {
+                write!(f, "{:?} is not an RFC3164-compliant hostname", name)
+            }
+            Error::BadIpAddress { source, .. } => write!(
+                f,
+                "While attempting to retrieve an IP address for this host, got {}",
+                source
+            ),
+            Error::BadTag { name, .. } => write!(f, "{:?} is not an RFC3164-compliant tag", name),
+            Error::BadTracingFormat { source, .. } => write!(
+                f,
+                "While attempting to format an Event or Span, got {}",
+                source
+            ),
+            Error::Io { source, .. } => write!(f, "I/O error: {}", source),
+            Error::NoTag { pathb, .. } => {
+                write!(f, "{:#?} does not yield an RFC3164-compliant tag", pathb)
+            }
+            _ => write!(f, "syslog transport layer error"),
+        }
+    }
+}
+
+impl std::fmt::Debug for Error {
+    #[allow(unreachable_patterns)]
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Error::BadHostname { name: _, back } => write!(f, "{}\n{:#?}", self, back),
+            Error::BadIpAddress { source: _, back } => write!(f, "{}\n{:#?}", self, back),
+            Error::BadTag { name: _, back } => write!(f, "{}\n{:#?}", self, back),
+            Error::BadTracingFormat { source: _, back } => write!(f, "{}\n{:#?}", self, back),
+            Error::Io { source: _, back } => write!(f, "{}\n{:#?}", self, back),
+            Error::NoTag { pathb: _, back } => write!(f, "{}\n{:#?}", self, back),
+            _ => write!(f, "{}", self),
+        }
+    }
+}
+
+impl std::error::Error for Error {}
+
+pub type Result<T> = std::result::Result<T, Error>;
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+//                                         utility types                                          //
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /// A `Vec<u8>` instance with the additional constraint that its contents be ASCII above the value
 /// 32 (space)
@@ -49,7 +143,7 @@ impl Rfc3164Hostname {
         if bytes.iter().all(|&x| x > 32 && x < 128) {
             Ok(Rfc3164Hostname(bytes))
         } else {
-            Err(Error::BadRfc3164Hostname {
+            Err(Error::BadHostname {
                 name: bytes,
                 back: Backtrace::new(),
             })
@@ -81,10 +175,7 @@ impl Rfc3164Hostname {
         // `hostname::get()` returns an `Result<OsString,_>`, which is really kind of a hassle to work
         // with...
         hostname::get()
-            .map_err(|err| Error::NoHostname {
-                source: Box::new(err),
-                back: Backtrace::new(),
-            })
+            .map_err(|err| err.into())
             // vvv :=> StdResult<Rfc3164Hostname, Error>
             .and_then(|hn| {
                 Rfc3164Hostname::new(Rfc3164Hostname::strip_domain(bytes_from_os_str(hn)))
@@ -93,12 +184,11 @@ impl Rfc3164Hostname {
             // StdResult<Rfc3164Hostname, Error>
             .or_else(|_err| {
                 let ip: StdResult<std::net::IpAddr, Error> =
-                    local_ip_address::local_ip().map_err(|_| Error::BadRfc3164IpAddress);
+                    local_ip_address::local_ip().map_err(|err| Error::BadIpAddress {
+                        source: err,
+                        back: Backtrace::new(),
+                    });
                 ip.and_then(|ip| Ok(Rfc3164Hostname(ip.to_string().into_bytes())))
-            }) // :=> StdResult<Rfc3164Hostname, Error>
-            .map_err(|err| Error::NoRfc3164Hostname {
-                source: Box::new(err),
-                back: Backtrace::new(),
             })
     }
 }
@@ -140,7 +230,7 @@ impl Tag {
         {
             Ok(Tag(bytes))
         } else {
-            Err(Error::BadRfc3164Tag {
+            Err(Error::BadTag {
                 name: bytes,
                 back: Backtrace::new(),
             })
@@ -158,15 +248,12 @@ impl Tag {
     }
     pub fn try_default() -> Result<Tag> {
         std::env::current_exe() // :=> StdResult<PathBuf, std::io::Error>
-            .map_err(|err| Error::NoExecutable {
-                source: Box::new(err),
-                back: Backtrace::new(),
-            })
+            .map_err(|err| err.into())
             .and_then(|pbuf| match pbuf.file_name() {
                 Some(os_str) => Tag::new(Tag::strip_non_compliant(bytes_from_os_str(
                     os_str.to_os_string(),
                 ))),
-                None => Err(Error::NoRfc3164Tag {
+                None => Err(Error::NoTag {
                     pathb: pbuf.clone(),
                     back: Backtrace::new(),
                 }),
@@ -275,6 +362,7 @@ impl Rfc3164Builder {
 }
 
 impl Formatter for Rfc3164 {
+    type Error = Error;
     fn format_event(
         &self,
         level: Level,
@@ -312,7 +400,11 @@ impl Formatter for Rfc3164 {
             buf.put_slice(&format!("[{}]: ", pid).as_bytes());
         }
 
-        fmtr.format_event(event, &mut buf)?;
+        fmtr.format_event(event, &mut buf)
+            .map_err(|err| Error::BadTracingFormat {
+                source: Box::new(err),
+                back: Backtrace::new(),
+            })?;
 
         Ok(buf)
     }

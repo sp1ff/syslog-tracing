@@ -2,6 +2,9 @@ syslog-tracing News -- history of user-visible changes         -*- outline -*-
 
 * 0.0 builds
 
+** 0.0.3 build
+
+Re-factored the error scheme into per-module `Error` types.
 ** 0.0.2 build
 
 Complete re-factor into a workspace with two packages:

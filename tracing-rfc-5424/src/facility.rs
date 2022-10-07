@@ -12,9 +12,14 @@
 //
 // You should have received a copy of the GNU General Public License along with mpdpopm.  If not,
 // see <http://www.gnu.org/licenses/>.
+
 //! syslog facility & level defintions.
 //!
-//! [`Facility`] and [`Level`] replicate the names used in `<syslog.h>`.
+//! [`Facility`] and [`Level`] replicate the names used in `<syslog.h>`. The are (mostly) identical
+//! in RFC [3164] & [5424].
+//!
+//! [3164]: https://datatracker.ietf.org/doc/html/rfc3164
+//! [5424]: https://datatracker.ietf.org/doc/html/rfc5424
 
 type StdResult<T, E> = std::result::Result<T, E>;
 
@@ -84,6 +89,7 @@ pub enum Facility {
 }
 
 impl std::default::Default for Facility {
+    /// The default facility is `LOG_USER`.
     fn default() -> Self {
         Facility::LOG_USER
     }

@@ -12,6 +12,7 @@
 //
 // You should have received a copy of the GNU General Public License along with mpdpopm.  If not,
 // see <http://www.gnu.org/licenses/>.
+
 //! Primitives for mapping [`tracing`] concepts to those of [`syslog-tracing`](crate).
 //!
 //! [`TracingFormatter`] implementations handle encoding [`Span`]s and (soon) [`Event`]s into
@@ -20,9 +21,10 @@
 //!
 //! [`Span`]: https://docs.rs/tracing/0.1.35/tracing/struct.Span.html
 //! [`Event`]: https://docs.rs/tracing/0.1.35/tracing/struct.Event.html
-use crate::error::{Error, Result};
 
 use backtrace::Backtrace;
+
+type StdResult<T, E> = std::result::Result<T, E>;
 
 /// Format [`tracing`] [`Span`]s & [`Event`]s to UTF-8-encoded strings.
 ///
@@ -38,9 +40,44 @@ use backtrace::Backtrace;
 /// [3164]: https://datatracker.ietf.org/doc/html/rfc3164
 /// [5424]: https://datatracker.ietf.org/doc/html/rfc5424
 pub trait TracingFormatter {
+    type Error: std::error::Error + 'static;
     /// Accumulate an Event into a buffer
-    fn format_event(&self, event: &tracing::Event, buf: &mut impl bytes::BufMut) -> Result<()>;
+    fn format_event(
+        &self,
+        event: &tracing::Event,
+        buf: &mut impl bytes::BufMut,
+    ) -> StdResult<(), Self::Error>;
 }
+
+#[non_exhaustive]
+pub enum Error {
+    NoMessageField { name: &'static str, back: Backtrace },
+}
+
+impl std::fmt::Display for Error {
+    // `Error` is non-exhaustive so that adding variants won't be a breaking change to our
+    // callers. That means the compiler won't catch us if we miss a variant here, so we
+    // always include a `_` arm.
+    #[allow(unreachable_patterns)]
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Error::NoMessageField { name, .. } => {
+                write!(f, "No message field found in event {}", name)
+            }
+        }
+    }
+}
+
+impl std::fmt::Debug for Error {
+    #[allow(unreachable_patterns)]
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Error::NoMessageField { name: _, back } => write!(f, "{:#?}\n{}", back, self),
+        }
+    }
+}
+
+impl std::error::Error for Error {}
 
 /// A [`TracingFormatter`] that just returns an [`Event`]s "message" field, if present (fails
 /// otherwise).
@@ -65,7 +102,12 @@ impl tracing::field::Visit for MessageEventVisitor {
 }
 
 impl TracingFormatter for TrivialTracingFormatter {
-    fn format_event(&self, event: &tracing::Event, buf: &mut impl bytes::BufMut) -> Result<()> {
+    type Error = Error;
+    fn format_event(
+        &self,
+        event: &tracing::Event,
+        buf: &mut impl bytes::BufMut,
+    ) -> StdResult<(), Error> {
         let mut visitor = MessageEventVisitor { message: None };
         event.record(&mut visitor);
         visitor
