@@ -1,4 +1,10 @@
+2022-10-09  Michael Herstine  <sp1ff@pobox.com>
+
+	Docs update; crates.io doesn't support Org-down.
+
 2022-10-07  Michael Herstine  <sp1ff@pobox.com>
+
+	Further prep for publishing the tracing-rfc-5424 crate on crates.io.
 
 	Tidying commit:
 	    - `Rfc5424Hostname` :=> `Hostname`

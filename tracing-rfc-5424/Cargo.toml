@@ -1,13 +1,13 @@
 [package]
 name = "tracing-rfc-5424"
-version = "0.0.4"
+version = "0.0.5"
 edition = "2021"
 
 license = "GPL-3.0-or-later"
 description = "A tracing layer that writes to syslog"
 homepage = "https://github.com/sp1ff/syslog-tracing"
 repository = "https://github.com/sp1ff/syslog-tracing/tracing-rfc-5424"
-readme = "README.org"
+readme = "README.md"
 keywords = ["tracing", "syslog", "rfc-3164", "rfc-5424"]
 categories = ["development-tools::debugging"]
 

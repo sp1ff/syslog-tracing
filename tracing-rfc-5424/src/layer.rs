@@ -191,7 +191,7 @@ where
 }
 
 #[cfg(test)]
-mod prototyping {
+mod smoke {
 
     use super::*;
 
