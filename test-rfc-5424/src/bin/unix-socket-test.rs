@@ -26,7 +26,7 @@ use tracing_subscriber::{
 
 pub fn main() {
     let subscriber = Registry::default()
-        .with(Layer::<Rfc3164, TrivialTracingFormatter, UnixSocket>::try_default().unwrap());
+        .with(Layer::<tracing_subscriber::Registry, Rfc3164, TrivialTracingFormatter, UnixSocket>::try_default().unwrap());
     let _guard = tracing::subscriber::set_default(subscriber);
 
     trace!("你好, Unix domain socket.");

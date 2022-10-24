@@ -17,13 +17,18 @@
 //!
 //! [5424]: https://datatracker.ietf.org/doc/html/rfc5424
 //!
-//! [`Rfc5424`] is a [`Formatter`] that produces syslog messages according to RFC 5424.
+//! [`Rfc5424`] is a [`SyslogFormatter`] that produces syslog messages according to RFC 5424. The
+//! RFC asserts that it obsoletes RFC [3164], but in practice the older format is still in use. In
+//! particular, [rsyslog] by default speaks it on the Unix domain socket (although it speaks 5424
+//! over TCP/IP sockets).
+//!
+//! [3164]: https://datatracker.ietf.org/doc/html/rfc3164
+//! [rsyslog]: https://www.rsyslog.com/
 
 use crate::{
     byte_utils::bytes_from_os_str,
     facility::{Facility, Level},
-    formatter::Formatter,
-    tracing::TracingFormatter,
+    formatter::SyslogFormatter,
 };
 
 use backtrace::Backtrace;
@@ -162,10 +167,9 @@ impl std::default::Default for Hostname {
                 source: Box::new(err),
                 back: Backtrace::new(),
             })
-            // vvv :=> StdResult<Hostname, Error>
+            // 👇 :=> StdResult<Hostname, Error>
             .and_then(|hn| Hostname::new(bytes_from_os_str(hn)))
-            // vvv will return the Ok(Hostname), or call the closure :=>
-            // StdResult<Hostname, Error>
+            // 👇 will return the Ok(Hostname), or call the closure :=> StdResult<Hostname, Error>
             .or_else(|_err| {
                 let ip: StdResult<std::net::IpAddr, Error> =
                     local_ip_address::local_ip().map_err(|_| Error::BadIpAddress);
@@ -177,7 +181,7 @@ impl std::default::Default for Hostname {
                         Err(Error::BadIpAddress)
                     }
                 })
-            }) // :=> StdResult<Hostname, Error>
+            }) // 👈 :=> StdResult<Hostname, Error>
             .or_else::<Error, _>(|_| Ok(Hostname(b"-".to_vec())))
             .unwrap()
     }
@@ -311,7 +315,7 @@ impl std::default::Default for ProcId {
     }
 }
 
-/// A formatter that produces RFC [5424]-conformant syslog messages.
+/// A syslog formatter that produces RFC [5424]-conformant syslog messages.
 ///
 /// [5424]: https://datatracker.ietf.org/doc/html/rfc5424
 pub struct Rfc5424 {
@@ -376,15 +380,15 @@ impl Rfc5424 {
     }
 }
 
-impl Formatter for Rfc5424 {
+impl SyslogFormatter for Rfc5424 {
     type Error = Error;
-    fn format_event(
+    type Output = Vec<u8>;
+    fn format(
         &self,
         level: Level,
-        event: &tracing::Event,
-        fmtr: &impl TracingFormatter,
+        msg: &str,
         timestamp: Option<DateTime<Utc>>,
-    ) -> Result<Vec<u8>> {
+    ) -> Result<Self::Output> {
         let mut buf = format!(
             "<{}>1 {} ",
             self.facility as u8 | level as u8,
@@ -412,11 +416,8 @@ impl Formatter for Rfc5424 {
             buf.put_u8(0xbf as u8);
         }
 
-        fmtr.format_event(event, &mut buf)
-            .map_err(|err| Error::BadTracingFormat {
-                source: Box::new(err),
-                back: Backtrace::new(),
-            })?;
+        buf.put_slice(msg.as_bytes());
+
         Ok(buf)
     }
 }

@@ -13,7 +13,10 @@
 // You should have received a copy of the GNU General Public License along with mpdpopm.  If not,
 // see <http://www.gnu.org/licenses/>.
 
-//! The syslog transport layer.
+//! The syslog transport layer
+//! ==========================
+//!
+//! # Introduction
 //!
 //! This module defines the [`Transport`] trait that all implementations must support, as well
 //! as the UDP, TCP & Unix socket (datagram as well as stream) implementations.
@@ -42,6 +45,30 @@
 //! let transpo = UnixSocket::new("/i/am/not/there.s");
 //! assert!(transpo.is_err()); // no such socket, after all
 //! ```
+//!
+//! # Discussion
+//!
+//! Why not just implement [`std::io::Write`] (and [`tokio::io::AsyncWrite`])? Because the
+//! abstraction doesn't make sense for us; [`std::io::Write`] is an abstraction for a
+//! general-purpose, byte-oriented sink. "The write method will attempt to write some data into the
+//! object, returning how many bytes were successfully written." Our semantics are different: "take
+//! this serialized message & transmit it to the syslog daemon".
+//!
+//! [`tokio::io::AsyncWrite`]: https://docs.rs/tokio/latest/tokio/io/trait.AsyncWrite.html
+//!
+//! [`tracing_subscriber::Layer`] is synchronous, but I could, I suppose, provide an async Transport
+//! abstraction, enabling someone to write:
+//!
+//! [`tracing_subscriber::Layer`]: https://docs.rs/tracing-subscriber/latest/tracing_subscriber/index.html#reexport.Layer
+//!
+//! ```text
+//! async fn f(&self, msg: &str) {
+//!     self.syslog_formatter.on_msg(msg)?)
+//!         .and_then(|thing| self.transport.send(thing).await?)
+//! }
+//! ```
+
+use crate::formatter::SyslogFormatter;
 
 use backtrace::Backtrace;
 
@@ -52,7 +79,7 @@ use std::{
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-//                                       module error type                                        //
+//                                       common error type                                        //
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /// syslog transport layer errors
@@ -105,18 +132,16 @@ pub type Result<T> = std::result::Result<T, Error>;
 //                                        Transport trait                                         //
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// N.B. This is perhaps not the best abstraction; a `Transport` implementation should not merely
-// take any slice of byte and ship it off to a syslog daemon; there should be some kind of
-// requirement that it be a proper syslog message, in either of RFC 5424 or 3164.
 /// Operations all transport layers must support.
-pub trait Transport {
+pub trait Transport<F: SyslogFormatter> {
+    type Error: std::error::Error;
     /// Send a slice of byte on this transport mechanism.
-    ///
-    /// It would be nice to make this more general, to accept input in a variety of forms that might
-    /// support zero-copy, but that the end of the day, UDP, TCP & Unix sockets all operate on a
-    /// contiguous slice of `u8`, so we require that our caller assemble one.
-    fn send(&self, buf: &[u8]) -> Result<usize>;
+    fn send(&self, buf: F::Output) -> std::result::Result<(), Self::Error>;
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+//                                         UDP Transport                                          //
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /// Sending syslog messages via UDP datagrams.
 pub struct UdpTransport {
@@ -128,8 +153,9 @@ impl UdpTransport {
     pub fn new<A: std::net::ToSocketAddrs>(addr: A) -> Result<UdpTransport> {
         // Bind to any available port on localhost...
         let socket = std::net::UdpSocket::bind("127.0.0.1:0")?;
-        // and connect to the syslog daemon at `addr`:
+        // and connect to the syslog daemon at `addr`...
         socket.connect(addr)?;
+        // and we're done!
         Ok(UdpTransport { socket })
     }
     /// Construct a [`Transport`] implementation via UDP at localhost:514
@@ -138,13 +164,25 @@ impl UdpTransport {
     }
 }
 
-impl Transport for UdpTransport {
-    fn send(&self, buf: &[u8]) -> Result<usize> {
-        self.socket.send(buf).map_err(|err| err.into())
+impl<F> Transport<F> for UdpTransport
+where
+    F: SyslogFormatter,
+{
+    type Error = Error;
+    fn send(&self, buf: F::Output) -> std::result::Result<(), Self::Error> {
+        self.socket.send(&buf)?;
+        Ok(())
     }
 }
 
+////////////////////////////////////////////////////////////////////////////////////////////////////
+//                                         TCP Transport                                          //
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
 /// Sending syslog message via TCP streams
+///
+/// Note that this implementation, at present, uses non-transparent framing with a trailing
+/// character of 10/0x0a/newline.
 pub struct TcpTransport {
     socket: std::net::TcpStream,
 }
@@ -162,8 +200,12 @@ impl TcpTransport {
     }
 }
 
-impl Transport for TcpTransport {
-    fn send(&self, buf: &[u8]) -> Result<usize> {
+impl<F> Transport<F> for TcpTransport
+where
+    F: SyslogFormatter,
+{
+    type Error = Error;
+    fn send(&self, buf: F::Output) -> std::result::Result<(), Self::Error> {
         use std::io::Write;
         // Trick I learned from tracing-subscriber.
         // <https://docs.rs/tracing-subscriber/0.3.11/src/tracing_subscriber/fmt/fmt_layer.rs.html#867-903>
@@ -182,13 +224,17 @@ impl Transport for TcpTransport {
         //
         // Reddit discussion here:
         // <https://www.reddit.com/r/rust/comments/v2uxze/getting_a_mutable_reference_to_self_in_a_method/>
-        writer.write(buf)?;
+        writer.write(&buf)?;
         writer.write(&[10])?;
         writer.flush()?;
 
-        return Ok(buf.len());
+        return Ok(());
     }
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+//                                    Unix Domain Sockets/UDP                                     //
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /// Sending syslog messages via Unix socket (datagram)
 #[cfg(target_os = "linux")]
@@ -210,13 +256,25 @@ impl UnixSocket {
 }
 
 #[cfg(target_os = "linux")]
-impl Transport for UnixSocket {
-    fn send(&self, buf: &[u8]) -> Result<usize> {
-        Ok(self.socket.send(buf)?)
+impl<F> Transport<F> for UnixSocket
+where
+    F: SyslogFormatter,
+{
+    type Error = Error;
+    fn send(&self, buf: F::Output) -> std::result::Result<(), Self::Error> {
+        self.socket.send(&buf)?;
+        Ok(())
     }
 }
 
+////////////////////////////////////////////////////////////////////////////////////////////////////
+//                                    Unix Domain Sockets/TCP                                     //
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
 /// Sending syslog messages via Unix socket (stream)
+///
+/// Note that this implementation, at present, uses non-transparent framing with a trailing
+/// character of 10/0x0a/newline.
 #[cfg(target_os = "linux")]
 pub struct UnixSocketStream {
     socket: UnixStream,
@@ -236,8 +294,12 @@ impl UnixSocketStream {
 }
 
 #[cfg(target_os = "linux")]
-impl Transport for UnixSocketStream {
-    fn send(&self, buf: &[u8]) -> Result<usize> {
+impl<F> Transport<F> for UnixSocketStream
+where
+    F: SyslogFormatter,
+{
+    type Error = Error;
+    fn send(&self, buf: F::Output) -> std::result::Result<(), Self::Error> {
         use std::io::Write;
 
         // Trick I learned from tracing-subscriber.
@@ -257,10 +319,10 @@ impl Transport for UnixSocketStream {
         //
         // Reddit discussion here:
         // <https://www.reddit.com/r/rust/comments/v2uxze/getting_a_mutable_reference_to_self_in_a_method/>
-        writer.write(buf)?;
+        writer.write(&buf)?;
         writer.write(&[10])?;
         writer.flush()?;
 
-        return Ok(buf.len());
+        return Ok(());
     }
 }

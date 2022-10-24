@@ -13,18 +13,32 @@
 // You should have received a copy of the GNU General Public License along with mpdpopm.  If not,
 // see <http://www.gnu.org/licenses/>.
 
-//! RFC [3164]-compliant syslog message formatting
+//! RFC 3164-compliant syslog message formatting
+//! ============================================
+//!
+//! # Introduction
+//!
+//! [`Rfc3164`] is a [`SyslogFormatter`] that produces syslog messages according to RFC [3164] (AKA
+//! the BSD syslog protocol). The protocol is descriptive rather than prescriptive in that it
+//! attempted to describe what was already present in the wild, rather than describe something new.
 //!
 //! [3164]: https://datatracker.ietf.org/doc/html/rfc3164
 //!
-//! [`Rfc3164`] is a [`Formatter`] that produces syslog messages according to RFC 3164 (AKA the BSD
-//! syslog protocol).
+//! Although older than RFC [5424] it is still useful because [rsyslog],
+//! when configured to listen on a Unix Domain socket (i.e. `/dev/log`) will [use] the so-called
+//! "special parser" to handle incoming messages, which does not support RFC 5424 (see e.g. [here]).
+//!
+//! [5424]: https://datatracker.ietf.org/doc/html/rfc5424
+//! [rsyslog]: https://www.rsyslog.com/
+//! [use]: https://unix.stackexchange.com/questions/622801/does-linuxs-rsyslog-support-rfc-5424
+//! [here]: https://github.com/rsyslog/rsyslog/issues/4749
+//!
+//!
 
 use crate::{
     byte_utils::bytes_from_os_str,
     facility::{Facility, Level},
-    formatter::Formatter,
-    tracing::TracingFormatter,
+    formatter::SyslogFormatter,
 };
 
 use backtrace::Backtrace;
@@ -132,11 +146,12 @@ pub type Result<T> = std::result::Result<T, Error>;
 pub struct Rfc3164Hostname(Vec<u8>);
 
 impl Rfc3164Hostname {
-    /// An RFC 3164-compliant hostname is at ASCII above 32/space. The RFC states "The Domain Name
-    /// MUST NOT be included in the HOSTNAME field" which I interpret to mean that _if_ one is using
-    /// a true [hostname], `bytes` should contain only letters, digits and `-`. That said, one _may_
-    /// use an IP v4 address for this field, so this method doesn't attempt to enforce this
-    /// condition & instead relies on the caller to do so (this _is_ respected by [`Rfc3164Hostname::try_default`]).
+    /// An RFC 3164-compliant hostname is made-up of ASCII above 32/space. The RFC states "The
+    /// Domain Name MUST NOT be included in the HOSTNAME field" which I interpret to mean that _if_
+    /// one is using a true [hostname], `bytes` should contain only letters, digits and `-`. That
+    /// said, one _may_ use an IP v4 address for this field, so this method doesn't attempt to
+    /// enforce this condition & instead relies on the caller to do so (this _is_ respected by
+    /// [`Rfc3164Hostname::try_default`]).
     ///
     /// [hostname]: https://man7.org/linux/man-pages/man7/hostname.7.html
     pub fn new(bytes: Vec<u8>) -> Result<Rfc3164Hostname> {
@@ -176,12 +191,11 @@ impl Rfc3164Hostname {
         // with...
         hostname::get()
             .map_err(|err| err.into())
-            // vvv :=> StdResult<Rfc3164Hostname, Error>
+            // 👇 :=> StdResult<Rfc3164Hostname, Error>
             .and_then(|hn| {
                 Rfc3164Hostname::new(Rfc3164Hostname::strip_domain(bytes_from_os_str(hn)))
             })
-            // vvv will return the Ok(Rfc3164Hostname), or call the closure :=>
-            // StdResult<Rfc3164Hostname, Error>
+            // 👇 will return the Ok(Rfc3164Hostname), or call the closure :=> StdResult<Rfc3164Hostname, Error>
             .or_else(|_err| {
                 let ip: StdResult<std::net::IpAddr, Error> =
                     local_ip_address::local_ip().map_err(|err| Error::BadIpAddress {
@@ -309,14 +323,23 @@ mod test {
     }
 }
 
-/// A formatter that produces RFC [3164]-conformant syslog messages.
+/// A syslog formatter that produces RFC [3164]-conformant syslog messages.
 ///
 /// [3164]: https://datatracker.ietf.org/doc/html/rfc3164
+///
+/// # Character encoding
+///
+/// Per the spec: "The code set traditionally and most often used has also been seven-bit ASCII in
+/// an eight-bit field", but in practice UTF-8 seems to be accepted. Therefore, callers may ask
+/// instances to [escape] unicode, but by default they will not.
+///
+/// [escape]: str::escape_unicode
 pub struct Rfc3164 {
     facility: Facility,
     hostname: Rfc3164Hostname,
     tag: Tag,
     add_pid: Option<u32>,
+    escape_unicode: bool,
 }
 
 impl Rfc3164 {
@@ -326,6 +349,7 @@ impl Rfc3164 {
             hostname: Rfc3164Hostname::try_default()?,
             tag: Tag::try_default()?,
             add_pid: Some(std::process::id()),
+            escape_unicode: false,
         })
     }
     pub fn builder() -> Result<Rfc3164Builder> {
@@ -356,20 +380,24 @@ impl Rfc3164Builder {
         self.imp.tag = Tag::try_from(tag)?;
         Ok(self)
     }
+    pub fn escape_unicode(mut self, escape_unicode: bool) -> Self {
+        self.imp.escape_unicode = escape_unicode;
+        self
+    }
     pub fn build(self) -> Rfc3164 {
         self.imp
     }
 }
 
-impl Formatter for Rfc3164 {
+impl SyslogFormatter for Rfc3164 {
     type Error = Error;
-    fn format_event(
+    type Output = Vec<u8>;
+    fn format(
         &self,
         level: Level,
-        event: &tracing::Event,
-        fmtr: &impl TracingFormatter,
+        msg: &str,
         timestamp: Option<DateTime<Utc>>,
-    ) -> Result<Vec<u8>> {
+    ) -> Result<Self::Output> {
         let mut buf = format!(
             "<{}>{} ",
             self.facility as u8 | level as u8,
@@ -382,7 +410,7 @@ impl Formatter for Rfc3164 {
         )
         .into_bytes();
 
-        use bytes::buf::BufMut;
+        use bytes::BufMut;
         buf.put_slice(&self.hostname.0);
 
         // The MSG part has two fields known as the TAG field and the CONTENT field.  The value in
@@ -400,11 +428,11 @@ impl Formatter for Rfc3164 {
             buf.put_slice(&format!("[{}]: ", pid).as_bytes());
         }
 
-        fmtr.format_event(event, &mut buf)
-            .map_err(|err| Error::BadTracingFormat {
-                source: Box::new(err),
-                back: Backtrace::new(),
-            })?;
+        if self.escape_unicode {
+            buf.put_slice(msg.escape_unicode().to_string().as_bytes())
+        } else {
+            buf.put_slice(msg.as_bytes())
+        }
 
         Ok(buf)
     }

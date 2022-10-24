@@ -13,40 +13,104 @@
 // You should have received a copy of the GNU General Public License along with mpdpopm.  If not,
 // see <http://www.gnu.org/licenses/>.
 
-//! Primitives for mapping [`tracing`] concepts to those of [`syslog-tracing`](crate).
+//! Primitives for mapping [`tracing`] entities to syslog messages.
 //!
-//! [`TracingFormatter`] implementations handle encoding [`Span`]s and (soon) [`Event`]s into
-//! text. This module provides at this time only a single implementation:
-//! [`TrivialTracingFormatter`] that simply extracts the "message" field from [`Event`]s.
+//! [`TracingFormatter`] implementations handle encoding [`Event`]s and [`Span`]s into text. This
+//! module provides at this time only a single implementation: [`TrivialTracingFormatter`] that
+//! simply extracts the "message" field from [`Event`]s.
 //!
-//! [`Span`]: https://docs.rs/tracing/0.1.35/tracing/struct.Span.html
 //! [`Event`]: https://docs.rs/tracing/0.1.35/tracing/struct.Event.html
+//! [`Span`]: https://docs.rs/tracing/0.1.35/tracing/struct.Span.html
+
+use crate::facility::Level;
 
 use backtrace::Backtrace;
 
 type StdResult<T, E> = std::result::Result<T, E>;
 
-/// Format [`tracing`] [`Span`]s & [`Event`]s to UTF-8-encoded strings.
+/// Format [`tracing`] [`Span`]s & [`Event`]s to UTF-8-encoded strings & syslog priorities.
 ///
 /// [`tracing`]: https://docs.rs/tracing/latest/tracing/index.html
 /// [`Span`]: https://docs.rs/tracing/0.1.35/tracing/struct.Span.html
 /// [`Event`]: https://docs.rs/tracing/0.1.35/tracing/struct.Event.html
 ///
-/// Events & Spans will typically be encoded as UTF-8, if not ASCII text. However, while RFC [3164]
-/// strongly suggests ASCII, it does make certain provisions for non-ASCII text. RFC [5424]
-/// explicitly suggests UTF-8, but allows for other encodings. Therefore, this trait reluctantly
-/// allows for arbitrary bytes.
+/// The translation from [`tracing`] events to syslog messages occurs in three parts:
 ///
-/// [3164]: https://datatracker.ietf.org/doc/html/rfc3164
-/// [5424]: https://datatracker.ietf.org/doc/html/rfc5424
-pub trait TracingFormatter {
+/// [`tracing`]: https://docs.rs/tracing/latest/tracing/index.html
+///
+/// 1. formatting the Span or Event to a textual message
+///
+/// 2. incorporating that message into a syslog packet compliant with your daemon's implementation
+///
+/// 3. transporting that packet to your daemon
+///
+/// Trait [`TracingFormatter`] formally defines step 1: implementations shall provide methods that
+/// will be invoked upon various [`tracing`] events ("span entered", "span exited", "event", and so
+/// forth); each method will indicate, firstly, whether this event shall produce a [`syslog`] log
+/// message, and if so, what the message field of that log line shall be.
+///
+/// [`tracing`]: https://docs.rs/tracing/latest/tracing/index.html
+/// [`syslog`]: https://en.wikipedia.org/wiki/Syslog
+///
+/// RFCs 3164 & 5424 mostly differ in the details of the fields that comprise the packet, but both
+/// contain a "message" field. But what is a "message"? Well, according to RFC 3164:
+///
+/// - The MSG part of the syslog packet MUST contain visible (printing) characters.
+///
+/// - The code set traditionally and most often used has also been seven-bit ASCII in an eight-bit
+/// field. In this code set, the only allowable characters are the ABNF VCHAR values (%d33-126) and
+/// spaces (SP value %d32).
+///
+/// According to RFC 5424:
+///
+/// - The character set used in MSG SHOULD be UNICODE, encoded using UTF-8 as specified in
+/// RFC 3629.  If the syslog application cannot encode the MSG in Unicode, it MAY use any other
+/// encoding.
+///
+/// - The syslog application SHOULD avoid octet values below 32 (the traditional US-ASCII control
+/// character range except DEL).  These values are legal, but a syslog application MAY modify these
+/// characters upon reception.  For example, it might change them into an escape sequence (e.g.,
+/// value 0 may be changed to "\0").  A syslog application SHOULD NOT modify any other octet values.
+///
+/// In other words, the two RFCs see the "messaage" as free-form; their differences seem to
+/// come-down to textual encoding. Therefore, this trait concerns itself simply with translating
+/// from [`tracing`] entities to a UTF-8-encoded messages. Downstream, particular implementatinos can do
+/// as they see fit with it, enabling code like:
+///
+/// ```text
+///  fn on_event(&self, event: &Event<'_>, ctx: Context<'_, S>) {
+///      self.tracing_formatter.on_event(event, ctx)?
+///           .and_then(|text| self.syslog_formatter.format(text)?)
+///           .and_then(|thing| self.transport.send(thing)?)
+///  }
+/// ```
+pub trait TracingFormatter<S>
+where
+    S: tracing::Subscriber + for<'a> tracing_subscriber::registry::LookupSpan<'a>,
+{
     type Error: std::error::Error + 'static;
-    /// Accumulate an Event into a buffer
-    fn format_event(
+    /// An event has occurred
+    fn on_event(
         &self,
         event: &tracing::Event,
-        buf: &mut impl bytes::BufMut,
-    ) -> StdResult<(), Self::Error>;
+        ctx: tracing_subscriber::layer::Context<'_, S>,
+    ) -> StdResult<Option<(String, Level)>, Self::Error>;
+    /// A span with the given ID was entered
+    fn on_enter(
+        &self,
+        _id: &tracing_core::span::Id,
+        _ctx: tracing_subscriber::layer::Context<'_, S>,
+    ) -> StdResult<Option<(String, Level)>, Self::Error> {
+        Ok(Option::None)
+    }
+    /// A span with the given ID was exited
+    fn on_exit(
+        &self,
+        _id: &tracing_core::span::Id,
+        _ctx: tracing_subscriber::layer::Context<'_, S>,
+    ) -> StdResult<Option<(String, Level)>, Self::Error> {
+        Ok(Option::None)
+    }
 }
 
 #[non_exhaustive]
@@ -79,11 +143,30 @@ impl std::fmt::Debug for Error {
 
 impl std::error::Error for Error {}
 
+fn default_level_mapping(level: &tracing::Level) -> Level {
+    match level {
+        &tracing::Level::TRACE | &tracing::Level::DEBUG => Level::LOG_DEBUG,
+        &tracing::Level::INFO => Level::LOG_INFO,
+        &tracing::Level::WARN => Level::LOG_WARNING,
+        &tracing::Level::ERROR => Level::LOG_ERR,
+    }
+}
+
 /// A [`TracingFormatter`] that just returns an [`Event`]s "message" field, if present (fails
-/// otherwise).
+/// otherwise). It doesn't respond to any other events.
 ///
 /// [`Event`]: https://docs.rs/tracing/0.1.35/tracing/struct.Event.html
-pub struct TrivialTracingFormatter;
+pub struct TrivialTracingFormatter {
+    map_level: Box<dyn Fn(&tracing::Level) -> Level + Send + Sync>,
+}
+
+impl std::default::Default for TrivialTracingFormatter {
+    fn default() -> Self {
+        TrivialTracingFormatter {
+            map_level: Box::new(default_level_mapping),
+        }
+    }
+}
 
 struct MessageEventVisitor {
     message: Option<String>,
@@ -101,24 +184,24 @@ impl tracing::field::Visit for MessageEventVisitor {
     }
 }
 
-impl TracingFormatter for TrivialTracingFormatter {
+impl<S> TracingFormatter<S> for TrivialTracingFormatter
+where
+    S: tracing_core::subscriber::Subscriber + for<'a> tracing_subscriber::registry::LookupSpan<'a>,
+{
     type Error = Error;
-    fn format_event(
+    fn on_event(
         &self,
         event: &tracing::Event,
-        buf: &mut impl bytes::BufMut,
-    ) -> StdResult<(), Error> {
+        _ctx: tracing_subscriber::layer::Context<'_, S>,
+    ) -> StdResult<Option<(String, Level)>, Error> {
         let mut visitor = MessageEventVisitor { message: None };
         event.record(&mut visitor);
         visitor
             .message
-            .and_then(|s| {
-                buf.put_slice(s.as_bytes());
-                Some(())
-            })
             .ok_or(Error::NoMessageField {
                 name: event.metadata().name(),
                 back: Backtrace::new(),
             })
+            .and_then(|s| Ok(Some((s, (*self.map_level)(event.metadata().level())))))
     }
 }

@@ -1,3 +1,7 @@
+2022-10-26  Michael Herstine  <sp1ff@pobox.com>
+
+	First 0.1 commit. This is a breaking change; I significantly re-worked the Trait definitions to hopefully make the abstractions clearer & tighter.
+
 2022-10-09  Michael Herstine  <sp1ff@pobox.com>
 
 	Docs update; crates.io doesn't support Org-down.

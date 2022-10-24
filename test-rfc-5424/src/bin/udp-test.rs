@@ -27,7 +27,7 @@ use tracing_subscriber::{
 pub fn main() {
     // Setup the real subsriber...
     let subscriber = Registry::default()
-        .with(Layer::<Rfc5424, TrivialTracingFormatter, UdpTransport>::try_default().unwrap());
+        .with(Layer::<tracing_subscriber::Registry, Rfc5424, TrivialTracingFormatter, UdpTransport>::try_default().unwrap());
     // and install it.
     let _guard = tracing::subscriber::set_default(subscriber);
 

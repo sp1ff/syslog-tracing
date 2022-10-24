@@ -16,19 +16,30 @@
 //! syslog facility & level defintions.
 //!
 //! [`Facility`] and [`Level`] replicate the names used in `<syslog.h>`. The are (mostly) identical
-//! in RFC [3164] & [5424].
+//! in both RFC [3164] & [5424], and so [`tracing-rfc-5424`](crate) models both with the same
+//! enumeration.
 //!
 //! [3164]: https://datatracker.ietf.org/doc/html/rfc3164
 //! [5424]: https://datatracker.ietf.org/doc/html/rfc5424
 
 type StdResult<T, E> = std::result::Result<T, E>;
 
-/// Both RFCs [5424] & [3164] define twenty-four facilities for messages. The enumeration values
+/// Both RFCs [5424] & [3164] define twenty-four "facilities" for messages. The enumeration values
 /// duplicate the constants defined in `<syslog.h>`, albeit multiplied by 8 for convenience in
-/// forming headers.
+/// forming syslog message headers (which again mirrors the `#define`s in `<syslog.h>`).
 ///
 /// [5424]: https://datatracker.ietf.org/doc/html/rfc5424
 /// [3164]: https://datatracker.ietf.org/doc/html/rfc3164
+///
+/// The "facility" is clearly designed to indicate the source of the log message, but regrettably
+/// selected a pre-defined set of values, along with eight "local" values and a "user" value
+/// (documented in the `<syslog.h>` header file as, I kid you not, "random user-level
+/// messages"). Furthermore, the set of selected sources is, ahem, showing its age. Does anyone have
+/// a line-printer anymore? An FTP site? A Usenet server? If I re-purpose one of those on my host,
+/// can I count on it being used for the same purpose on a different host? All part of the joy of
+/// coding to a legacy system, ably documented in Giles Orr's [note] on the topic.
+///
+/// [note]: https://www.gilesorr.com/blog/rsyslog-facility-severity.html
 #[allow(non_camel_case_types)]
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Facility {

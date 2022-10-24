@@ -1,5 +1,10 @@
 syslog-tracing News -- history of user-visible changes         -*- outline -*-
 
+* 0.1 builds
+
+** 0.1.0 build
+
+Complete re-write of the `TracingFormatter`, `SyslogFormatter` and `Transport` traits. This is a breaking change.
 * 0.0 builds
 
 ** 0.0.5 build

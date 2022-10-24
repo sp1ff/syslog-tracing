@@ -13,13 +13,17 @@
 // You should have received a copy of the GNU General Public License along with mpdpopm.  If not,
 // see <http://www.gnu.org/licenses/>.
 
-//! [`Layer`] implementations.
+//! [tracing-rfc-5424](crate) [`Layer`] implementations.
 //!
 //! [`Layer`]: https://docs.rs/tracing-subscriber/latest/tracing_subscriber/layer/trait.Layer.html
+//!
+//! A basic struct [`Layer`] is defined, but implementations are provided only for a few (sensible)
+//! combinations of type parameters. Consumers of this crate are of course free to implement the
+//! [`TracingFormatter`], [`SyslogFormatter`] and [`Transport`] traits for themselves & provide
+//! their own implementations.
 
 use crate::{
-    facility::Level,
-    formatter::Formatter,
+    formatter::SyslogFormatter,
     rfc3164::Rfc3164,
     rfc5424::Rfc5424,
     tracing::{TracingFormatter, TrivialTracingFormatter},
@@ -34,7 +38,7 @@ use tracing_subscriber::layer::Context;
 //                                       module error type                                        //
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-/// layer error type
+/// module error type
 #[non_exhaustive]
 pub enum Error {
     /// Formatting layer error
@@ -44,7 +48,7 @@ pub enum Error {
     },
     /// Transport layer error
     Transport {
-        source: crate::transport::Error,
+        source: Box<dyn std::error::Error>,
         back: Backtrace,
     },
 }
@@ -78,15 +82,6 @@ impl std::fmt::Debug for Error {
     }
 }
 
-impl std::convert::From<crate::transport::Error> for Error {
-    fn from(err: crate::transport::Error) -> Self {
-        Error::Transport {
-            source: err,
-            back: Backtrace::new(),
-        }
-    }
-}
-
 impl std::error::Error for Error {}
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -102,91 +97,148 @@ pub type Result<T> = std::result::Result<T, Error>;
 /// [`Layer`]: https://docs.rs/tracing-subscriber/latest/tracing_subscriber/layer/trait.Layer.html
 /// [`Span`]: https://docs.rs/tracing/0.1.35/tracing/struct.Span.html
 /// [`Event`]: https://docs.rs/tracing/0.1.35/tracing/struct.Event.html
-pub struct Layer<F1: Formatter, F2: TracingFormatter, T: Transport> {
-    formatter: F1,
-    map_level: Box<dyn Fn(&tracing::Level) -> Level + Send + Sync>,
+pub struct Layer<S, F1: SyslogFormatter, F2: TracingFormatter<S>, T: Transport<F1>>
+where
+    S: tracing::Subscriber + for<'a> tracing_subscriber::registry::LookupSpan<'a>,
+{
+    syslog_formatter: F1,
     tracing_formatter: F2,
     transport: T,
+    // I need the Subscriber implementation type as a type parameter to transmit it to the
+    // TracingFormatter trait. 👇 gets the compiler to shut-up about unused type parameters.
+    subscriber_type: std::marker::PhantomData<S>,
 }
 
-fn default_level_mapping(level: &tracing::Level) -> Level {
-    match level {
-        &tracing::Level::TRACE | &tracing::Level::DEBUG => Level::LOG_DEBUG,
-        &tracing::Level::INFO => Level::LOG_INFO,
-        &tracing::Level::WARN => Level::LOG_WARNING,
-        &tracing::Level::ERROR => Level::LOG_ERR,
-    }
-}
-
-impl Layer<Rfc5424, TrivialTracingFormatter, UdpTransport> {
-    /// Attempt to construct a Layer that will send RFC5424-compliant syslog messages via UDP to
+/// A [`Layer`] implementation with the following characteristics:
+///
+/// - Uses the "trivial" formatter for mapping from Tracing evengs to messages
+/// - Speaks RFC 5424 for syslog
+/// - Sends the resulting messages over UDP
+///
+/// May be used with any [`tracing_subscriber::Subscriber`] implementation that supports
+/// [`LookupSpan`].
+///
+/// [`tracing_subscriber::Subscriber`]: https://docs.rs/tracing/latest/tracing/trait.Subscriber.html
+/// [`LookupSpan`]: https://docs.rs/tracing-subscriber/latest/tracing_subscriber/registry/trait.LookupSpan.html
+impl<S> Layer<S, Rfc5424, TrivialTracingFormatter, UdpTransport>
+where
+    S: tracing::Subscriber + for<'a> tracing_subscriber::registry::LookupSpan<'a>,
+{
+    /// Attempt to construct a [`Layer`] that will send RFC5424-compliant syslog messages via UDP to
     /// port 514 on localhost
     pub fn try_default() -> Result<Self> {
         Ok(Layer {
-            formatter: Rfc5424::default(),
-            map_level: Box::new(default_level_mapping),
-            tracing_formatter: TrivialTracingFormatter,
-            transport: UdpTransport::local()?,
+            syslog_formatter: Rfc5424::default(),
+            tracing_formatter: TrivialTracingFormatter::default(),
+            transport: UdpTransport::local().map_err(|err| Error::Transport {
+                source: Box::new(err),
+                back: Backtrace::new(),
+            })?,
+            subscriber_type: std::marker::PhantomData,
         })
     }
 }
 
-impl Layer<Rfc3164, TrivialTracingFormatter, UnixSocket> {
+/// A [`Layer`] implementation with the following characteristics:
+///
+/// - Uses the "trivial" formatter for mapping from Tracing evengs to messages
+/// - Speaks RFC 3164 for syslog
+/// - Sends the resulting messages over a local Unix Domain socket
+///
+/// May be used with any [`tracing_subscriber::Subscriber`] implementation that supports
+/// [`LookupSpan`].
+///
+/// [`tracing_subscriber::Subscriber`]: https://docs.rs/tracing/latest/tracing/trait.Subscriber.html
+/// [`LookupSpan`]: https://docs.rs/tracing-subscriber/latest/tracing_subscriber/registry/trait.LookupSpan.html
+impl<S> Layer<S, Rfc3164, TrivialTracingFormatter, UnixSocket>
+where
+    S: tracing::Subscriber + for<'a> tracing_subscriber::registry::LookupSpan<'a>,
+{
     /// Attempt to construct a Layer that will send RFC3164-compliant syslog messages via datagrams
     /// to the Unix socket at `/dev/log` on localhost
     pub fn try_default() -> Result<Self> {
         Ok(Layer {
-            formatter: Rfc3164::try_default().map_err(|err| Error::Format {
+            syslog_formatter: Rfc3164::try_default().map_err(|err| Error::Format {
                 source: Box::new(err),
                 back: Backtrace::new(),
             })?,
-            map_level: Box::new(default_level_mapping),
-            tracing_formatter: TrivialTracingFormatter,
-            transport: UnixSocket::try_default()?,
+            tracing_formatter: TrivialTracingFormatter::default(),
+            transport: UnixSocket::try_default().map_err(|err| Error::Transport {
+                source: Box::new(err),
+                back: Backtrace::new(),
+            })?,
+            subscriber_type: std::marker::PhantomData,
         })
     }
 }
 
-impl<T: Transport> Layer<Rfc5424, TrivialTracingFormatter, T> {
+/// Customize a [`Layer`] implementation with the following characteristics:
+///
+/// - Uses the "trivial" formatter for mapping from Tracing evengs to messages
+/// - Speaks RFC 5424 for syslog
+/// - Sends the resulting messages over UDP
+///
+/// With a custom [`Transport`] implementation.  May be used with any
+/// [`tracing_subscriber::Subscriber`] implementation that supports [`LookupSpan`].
+///
+/// [`tracing_subscriber::Subscriber`]: https://docs.rs/tracing/latest/tracing/trait.Subscriber.html
+/// [`LookupSpan`]: https://docs.rs/tracing-subscriber/latest/tracing_subscriber/registry/trait.LookupSpan.html
+impl<S, T: Transport<Rfc5424>> Layer<S, Rfc5424, TrivialTracingFormatter, T>
+where
+    S: tracing::Subscriber + for<'a> tracing_subscriber::registry::LookupSpan<'a>,
+{
     /// Construct a Layer that will send RFC5424-compliant messages via transport `transport`
-    pub fn with_transport(transport: T) -> Layer<Rfc5424, TrivialTracingFormatter, T> {
+    pub fn with_transport(transport: T) -> Self {
         Layer {
-            formatter: Rfc5424::default(),
-            map_level: Box::new(default_level_mapping),
-            tracing_formatter: TrivialTracingFormatter,
+            syslog_formatter: Rfc5424::default(),
+            tracing_formatter: TrivialTracingFormatter::default(),
             transport: transport,
+            subscriber_type: std::marker::PhantomData,
         }
     }
 }
 
-impl<S, F1, F2, T> tracing_subscriber::layer::Layer<S> for Layer<F1, F2, T>
+/// This is the Big Tuna-- the [`Layer`] implementation.
+///
+/// [`Layer`]: https://docs.rs/tracing-subscriber/latest/tracing_subscriber/layer/trait.Layer.html
+impl<S, F1, F2, T> tracing_subscriber::layer::Layer<S> for Layer<S, F1, F2, T>
 where
-    S: tracing::Subscriber,
-    F1: Formatter + 'static,
-    F2: TracingFormatter + 'static,
-    T: Transport + 'static,
+    S: tracing::Subscriber + for<'a> tracing_subscriber::registry::LookupSpan<'a>,
+    F1: SyslogFormatter + 'static,
+    F2: TracingFormatter<S> + 'static,
+    T: Transport<F1> + 'static,
 {
-    fn on_event(&self, event: &Event<'_>, _ctx: Context<'_, S>) {
-        self.formatter
-            .format_event(
-                (self.map_level)(event.metadata().level()),
-                event,
-                &self.tracing_formatter,
-                None,
-            ) // :=> StdResult<Vec<u8>, <F1 as Formatter>::Error>
+    fn on_event(&self, event: &Event<'_>, ctx: Context<'_, S>) {
+        self.tracing_formatter
+            .on_event(event, ctx) // :=> StdResult<Option<(String, Level)>, <F1 as SyslogFormatter>::Error>
             .map_err(|err| Error::Format {
                 source: Box::new(err),
                 back: Backtrace::new(),
+            }) // 👈:=> StdResult<Option<(String, Level)>, Error>
+            .and_then(|x| {
+                // x is an Option<(String, Level)>
+                if let Some((msg, level)) = x {
+                    Ok(self
+                        .transport
+                        .send(
+                            self.syslog_formatter
+                                .format(level, &msg, None)
+                                .map_err(|err| Error::Format {
+                                    source: Box::new(err),
+                                    back: Backtrace::new(),
+                                })?,
+                        )
+                        .map_err(|err| Error::Transport {
+                            source: Box::new(err),
+                            back: Backtrace::new(),
+                        })?)
+                } else {
+                    Ok(())
+                }
             })
-            .and_then(|v| {
-                self.transport
-                    .send(&v) // :=> StdResult<u32, transport::Error>
-                    .map_err(|err| err.into())
-            })
-            .unwrap_or_else(|_| {
+            .unwrap_or_else(|_err| {
                 ::tracing::error!("tracing-subscriber failed");
-                0
-            });
+            })
     }
 }
 
@@ -194,6 +246,8 @@ where
 mod smoke {
 
     use super::*;
+
+    use crate::facility::Level;
 
     use tracing::Callsite;
 
@@ -232,7 +286,7 @@ mod smoke {
             .unwrap()
             .build();
 
-        let fmtr = TrivialTracingFormatter;
+        let fmtr = TrivialTracingFormatter::default();
 
         // Non-macro replication of the logic of `event!()`-- will need to wrap this up in a macro
         // at some point.
@@ -258,12 +312,11 @@ mod smoke {
         // reference_, so we need a way to keep it alive for the lifetime of the Event. Might be
         // time to wrap this up in a macro.
         (|value_set: ::tracing::field::ValueSet| {
-            let event = Event::new(CALLSITE.metadata(), &value_set);
+            let _event = Event::new(CALLSITE.metadata(), &value_set);
             let rsp: Vec<u8> = f
-                .format_event(
+                .format(
                     Level::LOG_INFO,
-                    &event,
-                    &fmtr,
+                    "Hello, world!",
                     Some(std::time::UNIX_EPOCH.into()),
                 )
                 .unwrap();
@@ -279,12 +332,11 @@ mod smoke {
         ));
 
         (|value_set: ::tracing::field::ValueSet| {
-            let event = Event::new(CALLSITE.metadata(), &value_set);
+            let _event = Event::new(CALLSITE.metadata(), &value_set);
             let rsp: Vec<u8> = f
-                .format_event(
+                .format(
                     Level::LOG_INFO,
-                    &event,
-                    &fmtr,
+                    "Hello, 世界!",
                     Some(std::time::UNIX_EPOCH.into()),
                 )
                 .unwrap();
@@ -310,12 +362,11 @@ mod smoke {
             .build();
 
         (|value_set: ::tracing::field::ValueSet| {
-            let event = Event::new(CALLSITE.metadata(), &value_set);
+            let _event = Event::new(CALLSITE.metadata(), &value_set);
             let rsp: Vec<u8> = f
-                .format_event(
+                .format(
                     Level::LOG_INFO,
-                    &event,
-                    &fmtr,
+                    "Hello, world!",
                     Some(std::time::UNIX_EPOCH.into()),
                 )
                 .unwrap();

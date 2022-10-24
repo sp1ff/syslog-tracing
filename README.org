@@ -2,7 +2,7 @@
 #+DESCRIPTION: tracing layer that writes to syslog
 #+AUTHOR: Michael Herstine
 #+EMAIL: sp1ff@pobox.com
-#+DATE: <2022-10-09 Sun 09:43>
+#+DATE: <2022-10-26 Wed 17:12>
 #+AUTODATE: t
 #+OPTIONS: toc:nil org-md-headline-style:setext *:t ^:nil
 #+STARTUP: overview
@@ -30,7 +30,7 @@ To add =tracing-rfc-5424= to your crate, say =cargo add tracing-rfc-5424=, or ad
 
 #+BEGIN_SRC toml
   [dependencies]
-  tracing-rfc-5424 = "0.0.5"
+  tracing-rfc-5424 = "0.1.0"
 #+END_SRC
 
 ** Examples
@@ -49,7 +49,7 @@ To talk to a local syslog daemon over UDP:
 
   // Setup the subsriber...
   let subscriber = Registry::default()
-      .with(Layer::<Rfc5424, TrivialTracingFormatter, UdpTransport>::try_default().unwrap());
+      .with(Layer::<Layer::<tracing_subscriber::Registry, Rfc5424, TrivialTracingFormatter, UdpTransport>::try_default().unwrap());
   // and install it.
   let _guard = tracing::subscriber::set_default(subscriber);
 
@@ -70,7 +70,7 @@ To talk to a local Unix socket:
 
     // Setup the subsriber...
   let subscriber = subscriber
-      .with(tracing_rfc_5424::layer::Layer::<Rfc3164, TrivialTracingFormatter, UnixSocket>::try_default().unwrap());
+      .with(tracing_rfc_5424::layer::Layer::<Layer::<tracing_subscriber::Registry, Rfc3164, TrivialTracingFormatter, UnixSocket>::try_default().unwrap());
   // and install it.
   let _guard = tracing::subscriber::set_default(subscriber);
 
@@ -87,12 +87,12 @@ To talk to a local Unix socket:
 #+END_SRC
 * Status, Rationale and Roadmap
 
-This is a preliminary release; the version number (0.0.x) is intended to convey that. Additional features to be implemented:
+This is a preliminary release; the version number (0.1.x) is intended to convey that. Additional features to be implemented:
 
   - more testing
   - more support for mapping from [[https://github.com/tokio-rs/tracing][tracing]] primitives (=Event=s & =Span=s) to syslog messages (today, the crate simply uses the "message" field in Events while ignoring Spans)
   - async transport abstractions
-  - mroe documentation
+  - more documentation
   - supporting MSGID for RFC 5424 formatting
   - support structured data for RFC 5424 formatting
   - Windows support

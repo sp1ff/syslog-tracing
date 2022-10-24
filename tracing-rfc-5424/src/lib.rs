@@ -85,7 +85,8 @@
 //!
 //! // The default configuration is to format syslog messages as per RFC 5424
 //! // and to send them via UDP to port 514 on the localhost.
-//! let subscriber = Registry::default().with(Layer::<Rfc5424, TrivialTracingFormatter, UdpTransport>::try_default().unwrap());
+//! let subscriber = Registry::default()
+//!     .with(Layer::<tracing_subscriber::Registry, Rfc5424, TrivialTracingFormatter, UdpTransport>::try_default().unwrap());
 //!
 //! info!("Hello, world!");
 //! ```
