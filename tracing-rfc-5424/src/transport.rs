@@ -74,9 +74,11 @@ use backtrace::Backtrace;
 
 use std::{
     net::TcpStream,
-    os::unix::net::{UnixDatagram, UnixStream},
     path::Path,
 };
+
+#[cfg(unix)]
+use std::os::unix::net::{UnixDatagram, UnixStream};
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 //                                       common error type                                        //
@@ -237,12 +239,12 @@ where
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /// Sending syslog messages via Unix socket (datagram)
-#[cfg(target_os = "linux")]
+#[cfg(unix)]
 pub struct UnixSocket {
     socket: UnixDatagram,
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(unix)]
 impl UnixSocket {
     /// Construct a [`Transport`] implementation via Unix datagram sockets at `path`.
     pub fn new<P: AsRef<Path>>(path: P) -> Result<UnixSocket> {
@@ -255,7 +257,7 @@ impl UnixSocket {
     }
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(unix)]
 impl<F> Transport<F> for UnixSocket
 where
     F: SyslogFormatter,
@@ -275,12 +277,12 @@ where
 ///
 /// Note that this implementation, at present, uses non-transparent framing with a trailing
 /// character of 10/0x0a/newline.
-#[cfg(target_os = "linux")]
+#[cfg(unix)]
 pub struct UnixSocketStream {
     socket: UnixStream,
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(unix)]
 impl UnixSocketStream {
     /// Construct a [`Transport`] implementation via Unix sockets at `path`.
     pub fn new<P: AsRef<Path>>(path: P) -> Result<UnixSocketStream> {
@@ -293,7 +295,7 @@ impl UnixSocketStream {
     }
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(unix)]
 impl<F> Transport<F> for UnixSocketStream
 where
     F: SyslogFormatter,
