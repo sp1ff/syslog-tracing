@@ -101,7 +101,9 @@ impl std::fmt::Display for Error {
                 "While extracting the name of the current host, got {}",
                 source
             ),
-            _ => write!(f, "RRC 5424 error: {}", self),
+            Error::BadProcId { name, back } => {
+                write!(f, "Bad proc id. name: {name:?}, backtrace: {back:?}",)
+            }
         }
     }
 }
