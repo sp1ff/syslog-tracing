@@ -192,7 +192,17 @@ where
         Layer {
             syslog_formatter: Rfc5424::default(),
             tracing_formatter: TrivialTracingFormatter::default(),
-            transport: transport,
+            transport,
+            subscriber_type: std::marker::PhantomData,
+        }
+    }
+
+    /// Construct a Layer that will send RFC5424-compliant messages via transport `transport`
+    pub fn with_transport_and_syslog_formatter(transport: T, formatter: Rfc5424) -> Self {
+        Layer {
+            syslog_formatter: formatter,
+            tracing_formatter: TrivialTracingFormatter::default(),
+            transport,
             subscriber_type: std::marker::PhantomData,
         }
     }
