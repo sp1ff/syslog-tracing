@@ -278,11 +278,12 @@ mod smoke {
     // needs a reference with 'static duration.
     impl TestCallsite {
         pub const fn new(metadata: &'static tracing::Metadata<'static>) -> TestCallsite {
-            TestCallsite { metadata: metadata }
+            TestCallsite { metadata }
         }
     }
 
     #[test]
+    #[allow(clippy::redundant_closure_call)]
     fn test_rfc_5424_impl() {
         // Just exercise `default()`; be sure it compiles & returns something sane.
         let _f = Rfc5424::default();
@@ -296,7 +297,7 @@ mod smoke {
             .unwrap()
             .build();
 
-        let fmtr = TrivialTracingFormatter::default();
+        let _fmtr = TrivialTracingFormatter::default();
 
         // Non-macro replication of the logic of `event!()`-- will need to wrap this up in a macro
         // at some point.
@@ -383,9 +384,9 @@ mod smoke {
 
             let mut golden =
                 Vec::from("<14>1 1970-01-01T00:00:00+00:00 bree.local prototyping 123 - - ");
-            golden.push(0xef as u8);
-            golden.push(0xbb as u8);
-            golden.push(0xbf as u8);
+            golden.push(0xef_u8);
+            golden.push(0xbb_u8);
+            golden.push(0xbf_u8);
             golden.extend_from_slice("Hello, world!".as_bytes());
 
             assert_eq!(rsp, golden);

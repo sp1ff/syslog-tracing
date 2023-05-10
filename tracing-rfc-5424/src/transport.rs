@@ -230,7 +230,7 @@ where
         writer.write(&[10])?;
         writer.flush()?;
 
-        return Ok(());
+        Ok(())
     }
 }
 
@@ -325,6 +325,6 @@ where
         writer.write(&[10])?;
         writer.flush()?;
 
-        return Ok(());
+        Ok(())
     }
 }

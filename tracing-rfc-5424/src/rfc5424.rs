@@ -109,9 +109,7 @@ impl std::fmt::Display for Error {
 impl std::fmt::Debug for Error {
     #[allow(unreachable_patterns)]
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            _ => write!(f, "RFC 5424 error: {}", self),
-        }
+        write!(f, "RFC 5424 error: {}", self)
     }
 }
 
@@ -245,7 +243,7 @@ impl std::default::Default for AppName {
                 AppName::new(match pbuf.file_name() {
                     // Arrrghhhh... wicked copy!
                     Some(os_str) => bytes_from_os_str(os_str.to_os_string()),
-                    None => vec!['-' as u8],
+                    None => vec![b'-'],
                 })
             })
             .unwrap()
@@ -411,9 +409,9 @@ impl SyslogFormatter for Rfc5424 {
         // byte order mask (BOM), which for UTF-8 is ABNF %xEF.BB.BF.  The syslog application
         // MUST encode in the "shortest form" and MAY use any valid UTF-8 sequence."
         if self.with_bom {
-            buf.put_u8(0xef as u8);
-            buf.put_u8(0xbb as u8);
-            buf.put_u8(0xbf as u8);
+            buf.put_u8(0xef_u8);
+            buf.put_u8(0xbb_u8);
+            buf.put_u8(0xbf_u8);
         }
 
         buf.put_slice(msg.as_bytes());

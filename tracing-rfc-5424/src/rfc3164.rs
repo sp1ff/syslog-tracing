@@ -168,7 +168,7 @@ impl Rfc3164Hostname {
     ///
     /// This method will remove anything including & after the first `.` in `bytes`.
     fn strip_domain(mut bytes: Vec<u8>) -> Vec<u8> {
-        if let Some(idx) = bytes.iter().position(|&x| x == ('.' as u8)) {
+        if let Some(idx) = bytes.iter().position(|&x| x == b'.') {
             bytes.truncate(idx);
         }
         bytes
@@ -202,7 +202,7 @@ impl Rfc3164Hostname {
                         source: err,
                         back: Backtrace::new(),
                     });
-                ip.and_then(|ip| Ok(Rfc3164Hostname(ip.to_string().into_bytes())))
+                ip.map(|ip| Rfc3164Hostname(ip.to_string().into_bytes()))
             })
     }
 }
@@ -237,9 +237,9 @@ impl Tag {
     pub fn new(bytes: Vec<u8>) -> Result<Tag> {
         if bytes.len() <= 32
             && bytes.iter().all(|&x| {
-                ('0' as u8 <= x && '9' as u8 >= x)
-                    || ('A' as u8 <= x && 'Z' as u8 >= x)
-                    || ('a' as u8 <= x && 'z' as u8 >= x)
+                (b'0'..=b'9').contains(&x)
+                    || (b'A'..=b'Z').contains(&x)
+                    || (b'a'..=b'z').contains(&x)
             })
         {
             Ok(Tag(bytes))
@@ -254,9 +254,9 @@ impl Tag {
     fn strip_non_compliant(x: Vec<u8>) -> Vec<u8> {
         x.into_iter()
             .filter(|&x| {
-                ('0' as u8 <= x && '9' as u8 >= x)
-                    || ('A' as u8 <= x && 'Z' as u8 >= x)
-                    || ('a' as u8 <= x && 'z' as u8 >= x)
+                (b'0'..=b'9').contains(&x)
+                    || (b'A'..=b'Z').contains(&x)
+                    || (b'a'..=b'z').contains(&x)
             })
             .collect()
     }
@@ -401,12 +401,10 @@ impl SyslogFormatter for Rfc3164 {
         let mut buf = format!(
             "<{}>{} ",
             self.facility as u8 | level as u8,
-            timestamp
-                .and_then(|d| Some(d.with_timezone(&Local)))
+            timestamp.map(|d| d.with_timezone(&Local))
                 .or_else(|| Some(Local::now()))
                 .unwrap()
-                .format("%b %_d %H:%M:%S")
-                .to_string(),
+                .format("%b %_d %H:%M:%S"),
         )
         .into_bytes();
 
@@ -425,7 +423,7 @@ impl SyslogFormatter for Rfc3164 {
         buf.put_slice(b" ");
         buf.put_slice(&self.tag.0);
         if let Some(pid) = self.add_pid {
-            buf.put_slice(&format!("[{}]: ", pid).as_bytes());
+            buf.put_slice(format!("[{}]: ", pid).as_bytes());
         }
 
         if self.escape_unicode {
