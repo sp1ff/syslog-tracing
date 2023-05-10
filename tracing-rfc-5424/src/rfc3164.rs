@@ -236,11 +236,9 @@ pub struct Tag(Vec<u8>);
 impl Tag {
     pub fn new(bytes: Vec<u8>) -> Result<Tag> {
         if bytes.len() <= 32
-            && bytes.iter().all(|&x| {
-                (b'0'..=b'9').contains(&x)
-                    || (b'A'..=b'Z').contains(&x)
-                    || (b'a'..=b'z').contains(&x)
-            })
+            && bytes
+                .iter()
+                .all(|&x| x.is_ascii_digit() || x.is_ascii_uppercase() || x.is_ascii_lowercase())
         {
             Ok(Tag(bytes))
         } else {
@@ -253,11 +251,7 @@ impl Tag {
     /// Strip non-compliant ASCII characters
     fn strip_non_compliant(x: Vec<u8>) -> Vec<u8> {
         x.into_iter()
-            .filter(|&x| {
-                (b'0'..=b'9').contains(&x)
-                    || (b'A'..=b'Z').contains(&x)
-                    || (b'a'..=b'z').contains(&x)
-            })
+            .filter(|&x| x.is_ascii_digit() || x.is_ascii_uppercase() || x.is_ascii_lowercase())
             .collect()
     }
     pub fn try_default() -> Result<Tag> {
@@ -401,7 +395,8 @@ impl SyslogFormatter for Rfc3164 {
         let mut buf = format!(
             "<{}>{} ",
             self.facility as u8 | level as u8,
-            timestamp.map(|d| d.with_timezone(&Local))
+            timestamp
+                .map(|d| d.with_timezone(&Local))
                 .or_else(|| Some(Local::now()))
                 .unwrap()
                 .format("%b %_d %H:%M:%S"),
