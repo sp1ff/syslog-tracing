@@ -72,11 +72,10 @@ use crate::formatter::SyslogFormatter;
 
 use backtrace::Backtrace;
 
-use std::{
-    net::TcpStream,
-    os::unix::net::{UnixDatagram, UnixStream},
-    path::Path,
-};
+use std::{net::TcpStream, path::Path};
+
+#[cfg(unix)]
+use std::os::unix::net::{UnixDatagram, UnixStream};
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 //                                       common error type                                        //
@@ -224,11 +223,11 @@ where
         //
         // Reddit discussion here:
         // <https://www.reddit.com/r/rust/comments/v2uxze/getting_a_mutable_reference_to_self_in_a_method/>
-        writer.write(&buf)?;
-        writer.write(&[10])?;
+        writer.write_all(&buf)?;
+        writer.write_all(&[10])?;
         writer.flush()?;
 
-        return Ok(());
+        Ok(())
     }
 }
 
@@ -237,12 +236,12 @@ where
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /// Sending syslog messages via Unix socket (datagram)
-#[cfg(target_os = "linux")]
+#[cfg(unix)]
 pub struct UnixSocket {
     socket: UnixDatagram,
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(unix)]
 impl UnixSocket {
     /// Construct a [`Transport`] implementation via Unix datagram sockets at `path`.
     pub fn new<P: AsRef<Path>>(path: P) -> Result<UnixSocket> {
@@ -255,7 +254,7 @@ impl UnixSocket {
     }
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(unix)]
 impl<F> Transport<F> for UnixSocket
 where
     F: SyslogFormatter,
@@ -275,12 +274,12 @@ where
 ///
 /// Note that this implementation, at present, uses non-transparent framing with a trailing
 /// character of 10/0x0a/newline.
-#[cfg(target_os = "linux")]
+#[cfg(unix)]
 pub struct UnixSocketStream {
     socket: UnixStream,
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(unix)]
 impl UnixSocketStream {
     /// Construct a [`Transport`] implementation via Unix sockets at `path`.
     pub fn new<P: AsRef<Path>>(path: P) -> Result<UnixSocketStream> {
@@ -293,7 +292,7 @@ impl UnixSocketStream {
     }
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(unix)]
 impl<F> Transport<F> for UnixSocketStream
 where
     F: SyslogFormatter,
@@ -319,10 +318,10 @@ where
         //
         // Reddit discussion here:
         // <https://www.reddit.com/r/rust/comments/v2uxze/getting_a_mutable_reference_to_self_in_a_method/>
-        writer.write(&buf)?;
-        writer.write(&[10])?;
+        writer.write_all(&buf)?;
+        writer.write_all(&[10])?;
         writer.flush()?;
 
-        return Ok(());
+        Ok(())
     }
 }

@@ -201,7 +201,6 @@ where
             .ok_or(Error::NoMessageField {
                 name: event.metadata().name(),
                 back: Backtrace::new(),
-            })
-            .and_then(|s| Ok(Some((s, (*self.map_level)(event.metadata().level())))))
+            }).map(|s| Some((s, (*self.map_level)(event.metadata().level()))))
     }
 }
