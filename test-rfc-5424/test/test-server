@@ -250,7 +250,7 @@ Options:
 
     -h, --help: print this usage message & exit with status zero
 
-Arugments:
+Arguments:
 
     DEST: destination on the host [default: container.syslog]
 EOF
