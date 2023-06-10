@@ -1,0 +1,80 @@
+# This is the continuous integration job for `syslog-tracing`. It runs on
+# Ubuntu, using three versions of Rust: a "pined" least supported version,
+# the current stable version and the current nightly version. After building,
+# it will run the unit test suite as well as Autotools' `distcheck`.
+name: Continuous Integration
+
+on:
+  workflow_dispatch:
+  pull_request:
+    types: [opened, edited, reopened] # don't say `synchronize`-- that is taken care of by `push`
+  push:
+  schedule:
+    - cron: '43 01 * * *'
+
+jobs:
+  build:
+    name: build
+    strategy:
+      matrix:
+        rust-build:
+          - pinned
+          - stable
+          - nightly
+        os: [ubuntu-22.04]
+        include:
+        - rust-build: pinned
+          os: ubuntu-22.04
+          rust: 1.69
+        - rust-build: stable
+          os: ubuntu-22.04
+          rust: stable
+        - rust-build: nightly
+          os: ubuntu-22.04
+          rust: nightly
+    runs-on: ${{ matrix.os }}
+    env:
+      RUST_BACKTRACE: 1
+    steps:
+
+    - name: Checkout repo
+      uses: actions/checkout@v2
+
+    - name: Install Rust
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: ${{ matrix.rust }}
+        profile: minimal
+        override: true
+
+    - name: Install tools
+      shell: bash
+      run: |
+        rustup target add x86_64-unknown-linux-musl
+        sudo apt-get install exuberant-ctags
+        cargo install rusty-tags
+
+    - name: Build syslog-tracing
+      run: make
+
+    # Copied verbatim from ripgrep. BurntSushi says "This is useful
+    # for debugging problems when the expected build artifacts (like
+    # shell completions and man pages) aren't generated."
+    - name: Show build.rs stderr
+      shell: bash
+      run: |
+        set -x
+        pwd
+        stderr="$(find target/debug -name stderr -print0 | xargs -0 ls -t | head -n1)"
+        if [ -s "$stderr" ]; then
+          echo "===== $stderr ===== "
+          cat "$stderr"
+          echo "====="
+        fi
+
+    - name: Run the unit & integration test suite
+      shell: bash
+      run: |
+        set -x
+        make check
+
