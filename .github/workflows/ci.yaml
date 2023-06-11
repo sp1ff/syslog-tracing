@@ -38,14 +38,12 @@ jobs:
     steps:
 
     - name: Checkout repo
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
 
     - name: Install Rust
-      uses: actions-rs/toolchain@v1
+      uses: dtolnay/rust-toolchain@master
       with:
         toolchain: ${{ matrix.rust }}
-        profile: minimal
-        override: true
 
     - name: Install tools
       shell: bash
@@ -86,4 +84,3 @@ jobs:
       run: |
         set -x
         make check
-
