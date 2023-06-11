@@ -1,4 +1,4 @@
-.PHONY: all sttic check
+.PHONY: all static check
 
 all:
 	cargo build

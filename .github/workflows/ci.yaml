@@ -52,7 +52,16 @@ jobs:
       run: |
         rustup target add x86_64-unknown-linux-musl
         sudo apt-get install exuberant-ctags
-        cargo install rusty-tags
+        cargo install rusty-tags ripgrep
+
+    - name: Check for TODO-s
+      shell: bash
+      run: |
+        set -x
+        if rg -t rust 'TODO|TOOD|LATER|\\todo|todo!|dbg!'; then
+          echo "You have TODO-s"
+          exit 1
+        fi
 
     - name: Build syslog-tracing
       run: make
