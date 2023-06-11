@@ -13,7 +13,7 @@
 // You should have received a copy of the GNU General Public License along with mpdpopm.  If not,
 // see <http://www.gnu.org/licenses/>.
 
-//! syslog facility & level defintions.
+//! syslog facility & level definitions.
 //!
 //! [`Facility`] and [`Level`] replicate the names used in `<syslog.h>`. The are (mostly) identical
 //! in both RFC [3164] & [5424], and so [`tracing-rfc-5424`](crate) models both with the same
