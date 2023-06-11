@@ -1,3 +1,46 @@
+2023-06-11  Michael  <sp1ff@pobox.com>
+
+	Merge pull request #6 from striezel-stash/ci-actions-update
+	Update GitHub Actions CI
+
+	Merge pull request #5 from striezel-stash/fix-typos
+	Fix a few typos
+
+2023-06-10  Michael Herstine  <sp1ff@pobox.com>
+
+	Update workflow to work more reliably
+
+2023-06-10  Dirk Stolle  <striezel-dev@web.de>
+
+	Update GitHub Actions CI
+	The following updates are performed:
+	* update actions/checkout to v3
+	* replace unmaintained actions-rs/toolchain by dtolnay/rust-toolchain
+
+	Fix a few typos
+
+2023-06-09  Michael Herstine  <sp1ff@pobox.com>
+
+	Adding a CI workflow & squashing all my commits flailing at getting the damn thing to work.
+
+2023-06-01  Michael Herstine  <sp1ff@pobox.com>
+
+	Merge branch 'viridIT/master'
+
+2023-06-01  ltabis  <ltabis.pro@gmail.com>
+
+	feat(transport): add a method to customize a syslog formatter for a layer
+	fix: handle all errors to prevent recursion + use `write_all` when sending buffer
+
+2023-04-18  Michael  <sp1ff@pobox.com>
+
+	Merge pull request #2 from kriomant/unix-socket-on-non-linux
+	Allow UnixSocket transport for all UNIX OSes
+
+2023-01-06  Mikhail Trishchenkov  <kriomant@gmail.com>
+
+	Allow UnixSocket transport for all UNIX OSes
+
 2022-10-26  Michael Herstine  <sp1ff@pobox.com>
 
 	First 0.1 commit. This is a breaking change; I significantly re-worked the Trait definitions to hopefully make the abstractions clearer & tighter.

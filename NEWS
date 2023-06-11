@@ -2,6 +2,12 @@ syslog-tracing News -- history of user-visible changes         -*- outline -*-
 
 * 0.1 builds
 
+** 0.1.1 build
+
+*** Fix a few typos
+*** add a method to customize a syslog formatter for a layer
+*** Allow UnixSocket transport for all UNIX OSes
+*** Introduce and stabilize a CI workflow
 ** 0.1.0 build
 
 Complete re-write of the `TracingFormatter`, `SyslogFormatter` and `Transport` traits. This is a breaking change.

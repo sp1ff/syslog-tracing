@@ -24,7 +24,7 @@ Other than [tracing](https://github.com/tokio-rs/tracing) and a syslog daemon, n
 To add [tracing-rfc-5424](https://github.com/sp1ff/syslog-tracing/tracing-rfc-5424) to your crate, just say `cargo add tracing-rfc-5424`, or add it directly to your `Cargo.toml`:
 
     [dependencies]
-    tracing-rfc-5424 = "0.1.0"
+    tracing-rfc-5424 = "0.1.1"
 # Usage
 
 To talk to a local syslog daemon over UDP:
