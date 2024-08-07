@@ -151,7 +151,7 @@ impl UdpTransport {
     /// Construct a [`Transport`] implementation via UDP at `addr`.
     pub fn new<A: std::net::ToSocketAddrs>(addr: A) -> Result<UdpTransport> {
         // Bind to any available port on localhost...
-        let socket = std::net::UdpSocket::bind("127.0.0.1:0")?;
+        let socket = std::net::UdpSocket::bind("0.0.0.0:0")?;
         // and connect to the syslog daemon at `addr`...
         socket.connect(addr)?;
         // and we're done!
