@@ -1,3 +1,35 @@
+2024-08-24  Michael Herstine  <sp1ff@pobox.com>
+
+	Cut release 0.1.2
+
+2024-08-17  Michael  <sp1ff@pobox.com>
+
+	Merge pull request #7 from dirkvdb/master
+	Use 0.0.0.0 as udp bind address
+
+2024-08-07  Dirk Vanden Boer  <dirk.vdb@gmail.com>
+
+	Use 0.0.0.0 as udp bind address
+
+2023-07-08  Michael Herstine  <sp1ff@pobox.com>
+
+	Fix the Continuous Integration job.
+	Three days ago, BurntSushi released version 0.1.8 of the
+	`grep-cli` crate:
+	<https://github.com/BurntSushi/ripgrep/commit/f4d07b9cbdcf7d52e63f35fe76279e99a17492ef>
+
+	In which he raised the minimum rust version supported by `ripgrep`
+	to 1.70
+	<https://github.com/BurntSushi/ripgrep/commit/4fcb1b2202b97c5a21894672232700225223a138>
+
+	Since I just use `ripgrep` for something that could arguably be in
+	a pre-commit hook, I'm going to maintain support for rust 1.69 by
+	swapping-out ripgrep for good 'ol find-grep.
+
+2023-06-11  Michael Herstine  <sp1ff@pobox.com>
+
+	Release 0.1.1 of syslog-tracing.
+
 2023-06-11  Michael  <sp1ff@pobox.com>
 
 	Merge pull request #6 from striezel-stash/ci-actions-update
