@@ -1,0 +1,12 @@
+Installation Instructions
+*************************
+
+Basic Installation
+==================
+
+To add tracing-rfc-5424 to your crate, say `cargo add
+tracing-rfc-5424`, or add it directly to your Cargo.toml:
+
+    [dependencies]
+    tracing-rfc-5424 = "0.1.2"
+
