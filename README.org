@@ -1,8 +1,8 @@
 #+TITLE: syslog-tracing
-#+DESCRIPTION: tracing layer that writes to syslog
+#+DESCRIPTION: A tracing layer that writes to syslog
 #+AUTHOR: Michael Herstine
 #+EMAIL: sp1ff@pobox.com
-#+DATE: <2024-08-24 Sat 18:54>
+#+DATE: <2024-10-05 Sat 18:47>
 #+AUTODATE: t
 #+OPTIONS: toc:nil org-md-headline-style:setext *:t ^:nil
 #+STARTUP: overview
@@ -90,7 +90,7 @@ To talk to a local Unix socket:
 This is a preliminary release; the version number (0.1.x) is intended to convey that. Additional features to be implemented:
 
   - more testing
-  - more support for mapping from [[https://github.com/tokio-rs/tracing][tracing]] primitives (=Event=s & =Span=s) to syslog messages (today, the crate simply uses the "message" field in Events while ignoring Spans)
+  - more support for mapping from [[https://github.com/tokio-rs/tracing][tracing]] primitives (=Event=s & =Span=s) to syslog messages (today, the crate simply uses the "message" field in Events while ignoring Spans altogether)
   - async transport abstractions
   - more documentation
   - supporting MSGID for RFC 5424 formatting

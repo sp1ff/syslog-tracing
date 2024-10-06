@@ -24,6 +24,8 @@
 
 type StdResult<T, E> = std::result::Result<T, E>;
 
+/// Message facility codes.
+///
 /// Both RFCs [5424] & [3164] define twenty-four "facilities" for messages. The enumeration values
 /// duplicate the constants defined in `<syslog.h>`, albeit multiplied by 8 for convenience in
 /// forming syslog message headers (which again mirrors the `#define`s in `<syslog.h>`).

@@ -1,0 +1,15 @@
+#!/bin/bash
+set -x
+
+# `ripgrep` needs rust 1.70 to compile, but I stubbornly refuse to upgrade my
+# "pinned" rust version!
+# if rg -t rust 'TODO|TOOD|LATER|\\todo|todo!|dbg!'; then
+if find . -iname '*.rs' -print0|xargs -0 grep -E 'TODO|TOOD|LATER|IN-?PROGRESS|\\todo|todo!|panic!|dbg!'; then
+    echo "You have TODO-s"
+    exit 1
+fi
+
+set -e
+cargo clippy -- --no-deps -Dwarnings
+RUSTDOCFLAGS=-Dwarnings cargo doc
+

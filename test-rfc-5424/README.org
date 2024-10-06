@@ -1,0 +1,23 @@
+#+TITLE: test-rfc-5424
+#+DESCRIPTION: A crate for testing tracing-rfc-5424
+#+AUTHOR: Michael Herstine
+#+DATE: <2024-10-05 Sat 19:16>
+#+AUTODATE: t
+#+OPTIONS: toc:nil org-md-headline-style:setext *:t ^:nil
+#+STARTUP: overview
+
+* Introduction
+
+This crate serves to test [[https://github.com/sp1ff/syslog-tracing/tracing-rfc-5424][tracing-rfc-5424]], a [[https://docs.rs/tracing-subscriber/latest/tracing_subscriber/index.html][tracing-subscriber]] [[https://docs.rs/tracing-subscriber/latest/tracing_subscriber/layer/trait.Layer.html][Layer]] implementation that sends [[https://docs.rs/tracing/latest/tracing/index.html][tracing ]][[https://docs.rs/tracing/latest/tracing/struct.Event.html][Event]]s to a [[https://en.wikipedia.org/wiki/Syslog][syslog]] [[https://en.wikipedia.org/wiki/Daemon_(computing)][daemon]].
+* License
+
+=syslog-tracing= is released under the [[https://spdx.org/licenses/GPL-3.0-or-later.html][GPL v3.0]].
+* Prerequisites
+
+Other than [[https://github.com/tokio-rs/tracing][tracing]] and a syslog daemon, none. [[https://github.com/sp1ff/syslog-tracing/tracing-rfc-5424][tracing-rfc-5424]] was developed against rust 1.58.1, although [[https://github.com/tokio-rs/tracing][tracing]] requires 1.49.
+* Usage
+
+Run =make= to build the test suite, and =make check= to run it.
+* Status
+
+This is a preliminary release; the version number (0.1.x) is intended to convey that.

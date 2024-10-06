@@ -48,42 +48,15 @@ jobs:
     - name: Install tools
       shell: bash
       run: |
+        rustup component add clippy
         rustup target add x86_64-unknown-linux-musl
         sudo apt-get install exuberant-ctags
         cargo install rusty-tags
 
-    - name: Check for TODO-s
+    - name: Lint
       shell: bash
-      run: |
-        set -x
-        # `ripgrep` needs rust 1.70 to compile, but I stubbornly refuse
-        # to upgrade my "pinned" rust version!
-        # if rg -t rust 'TODO|TOOD|LATER|\\todo|todo!|dbg!'; then
-        if find . -iname '*.rs' -print0|xargs -0 grep -E 'TODO|TOOD|LATER|\\todo|todo!|dbg!'; then
-          echo "You have TODO-s"
-          exit 1
-        fi
+      run: 'admin/run-linters'
 
     - name: Build syslog-tracing
-      run: make
-
-    # Copied verbatim from ripgrep. BurntSushi says "This is useful
-    # for debugging problems when the expected build artifacts (like
-    # shell completions and man pages) aren't generated."
-    - name: Show build.rs stderr
       shell: bash
-      run: |
-        set -x
-        pwd
-        stderr="$(find target/debug -name stderr -print0 | xargs -0 ls -t | head -n1)"
-        if [ -s "$stderr" ]; then
-          echo "===== $stderr ===== "
-          cat "$stderr"
-          echo "====="
-        fi
-
-    - name: Run the unit & integration test suite
-      shell: bash
-      run: |
-        set -x
-        make check
+      run: 'admin/cargo-build-test-smoke'

@@ -58,19 +58,19 @@ type StdResult<T, E> = std::result::Result<T, E>;
 /// - The MSG part of the syslog packet MUST contain visible (printing) characters.
 ///
 /// - The code set traditionally and most often used has also been seven-bit ASCII in an eight-bit
-/// field. In this code set, the only allowable characters are the ABNF VCHAR values (%d33-126) and
-/// spaces (SP value %d32).
+///   field. In this code set, the only allowable characters are the ABNF VCHAR values (%d33-126) and
+///   spaces (SP value %d32).
 ///
 /// According to RFC 5424:
 ///
 /// - The character set used in MSG SHOULD be UNICODE, encoded using UTF-8 as specified in
-/// RFC 3629.  If the syslog application cannot encode the MSG in Unicode, it MAY use any other
-/// encoding.
+///   RFC 3629.  If the syslog application cannot encode the MSG in Unicode, it MAY use any other
+///   encoding.
 ///
 /// - The syslog application SHOULD avoid octet values below 32 (the traditional US-ASCII control
-/// character range except DEL).  These values are legal, but a syslog application MAY modify these
-/// characters upon reception.  For example, it might change them into an escape sequence (e.g.,
-/// value 0 may be changed to "\0").  A syslog application SHOULD NOT modify any other octet values.
+///   character range except DEL).  These values are legal, but a syslog application MAY modify these
+///   characters upon reception.  For example, it might change them into an escape sequence (e.g.,
+///   value 0 may be changed to "\0").  A syslog application SHOULD NOT modify any other octet values.
 ///
 /// In other words, the two RFCs see the "messaage" as free-form; their differences seem to
 /// come-down to textual encoding. Therefore, this trait concerns itself simply with translating
@@ -201,6 +201,7 @@ where
             .ok_or(Error::NoMessageField {
                 name: event.metadata().name(),
                 back: Backtrace::new(),
-            }).map(|s| Some((s, (*self.map_level)(event.metadata().level()))))
+            })
+            .map(|s| Some((s, (*self.map_level)(event.metadata().level()))))
     }
 }
