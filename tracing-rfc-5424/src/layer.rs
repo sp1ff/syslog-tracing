@@ -172,6 +172,21 @@ where
     }
 }
 
+impl<S, T: Transport<Rfc5424>, TF: TracingFormatter<S>> Layer<S, Rfc5424, TF, T>
+where
+    S: tracing::Subscriber + for<'a> tracing_subscriber::registry::LookupSpan<'a>,
+{
+    /// construct Layer with custom inners
+    pub fn new(syslog_formatter: Rfc5424, tracing_formatter: TF, transport: T) -> Self {
+        Layer {
+            syslog_formatter,
+            tracing_formatter,
+            transport,
+            subscriber_type: std::marker::PhantomData,
+        }
+    }
+}
+
 /// Customize a [`Layer`] implementation with the following characteristics:
 ///
 /// - Uses the "trivial" formatter for mapping from Tracing evengs to messages
