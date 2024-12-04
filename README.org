@@ -2,7 +2,7 @@
 #+DESCRIPTION: A tracing layer that writes to syslog
 #+AUTHOR: Michael Herstine
 #+EMAIL: sp1ff@pobox.com
-#+DATE: <2024-10-05 Sat 18:47>
+#+DATE: <2024-12-04 Wed 11:58>
 #+AUTODATE: t
 #+OPTIONS: toc:nil org-md-headline-style:setext *:t ^:nil
 #+STARTUP: overview
@@ -30,7 +30,7 @@ To add =tracing-rfc-5424= to your crate, say =cargo add tracing-rfc-5424=, or ad
 
 #+BEGIN_SRC toml
   [dependencies]
-  tracing-rfc-5424 = "0.1.2"
+  tracing-rfc-5424 = "0.1.3"
 #+END_SRC
 
 ** Examples

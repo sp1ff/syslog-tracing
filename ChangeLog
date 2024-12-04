@@ -1,3 +1,21 @@
+2024-12-04  Michael Herstine  <sp1ff@pobox.com>
+
+	Cut release 0.1.3
+
+	Tidy the project.
+	This is a hygiene commit; updated READMEs, adding typical GNU files,
+	&c. This will also fix #9.
+
+2024-10-29  Michael  <sp1ff@pobox.com>
+
+	Merge pull request #8 from elrafoon/layer-new
+	feat(layer): add constructor accepting all inners
+
+2024-10-24  Stanislav Ravas  <ravas@tind.sk>
+
+	feat(layer): add constructor accepting all inners
+	Allow creating custom rfc-5424 layers.
+
 2024-08-24  Michael Herstine  <sp1ff@pobox.com>
 
 	Cut release 0.1.2
