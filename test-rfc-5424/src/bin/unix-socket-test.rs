@@ -15,23 +15,35 @@
 
 //! Test writing to `/dev/log` on the local host.
 
-use tracing::{debug, error, info, trace, warn};
-use tracing_rfc_5424::{
-    layer::Layer, rfc3164::Rfc3164, tracing::TrivialTracingFormatter, transport::UnixSocket,
-};
-use tracing_subscriber::{
-    layer::SubscriberExt, // Needed to get `with()`
-    registry::Registry,
-};
+#[cfg(unix)]
+mod test {
+    use tracing::{debug, error, info, trace, warn};
+    use tracing_rfc_5424::{
+        layer::Layer, rfc3164::Rfc3164, tracing::TrivialTracingFormatter, transport::UnixSocket,
+    };
+    use tracing_subscriber::{
+        layer::SubscriberExt, // Needed to get `with()`
+        registry::Registry,
+    };
+
+    pub fn run() {
+        let subscriber = Registry::default()
+        .with(Layer::<tracing_subscriber::Registry, Rfc3164, TrivialTracingFormatter, UnixSocket>::try_default().unwrap());
+        let _guard = tracing::subscriber::set_default(subscriber);
+
+        trace!("你好, Unix domain socket.");
+        debug!("你好, Unix domain socket.");
+        info!("你好, Unix domain socket.");
+        warn!("你好, Unix domain socket.");
+        error!("你好, Unix domain socket.");
+    }
+}
+
+#[cfg(not(unix))]
+mod test {
+    pub fn run() {}
+}
 
 pub fn main() {
-    let subscriber = Registry::default()
-        .with(Layer::<tracing_subscriber::Registry, Rfc3164, TrivialTracingFormatter, UnixSocket>::try_default().unwrap());
-    let _guard = tracing::subscriber::set_default(subscriber);
-
-    trace!("你好, Unix domain socket.");
-    debug!("你好, Unix domain socket.");
-    info!("你好, Unix domain socket.");
-    warn!("你好, Unix domain socket.");
-    error!("你好, Unix domain socket.");
+    test::run()
 }
