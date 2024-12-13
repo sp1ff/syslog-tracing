@@ -27,8 +27,11 @@ use crate::{
     rfc3164::Rfc3164,
     rfc5424::Rfc5424,
     tracing::{TracingFormatter, TrivialTracingFormatter},
-    transport::{Transport, UdpTransport, UnixSocket},
+    transport::{Transport, UdpTransport},
 };
+
+#[cfg(unix)]
+use crate::transport::UnixSocket;
 
 use backtrace::Backtrace;
 use tracing::Event;
@@ -150,6 +153,7 @@ where
 ///
 /// [`tracing_subscriber::Subscriber`]: https://docs.rs/tracing/latest/tracing/trait.Subscriber.html
 /// [`LookupSpan`]: https://docs.rs/tracing-subscriber/latest/tracing_subscriber/registry/trait.LookupSpan.html
+#[cfg(unix)]
 impl<S> Layer<S, Rfc3164, TrivialTracingFormatter, UnixSocket>
 where
     S: tracing::Subscriber + for<'a> tracing_subscriber::registry::LookupSpan<'a>,
