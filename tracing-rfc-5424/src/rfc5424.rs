@@ -59,7 +59,7 @@ pub enum Error {
     },
     /// Failed to format the `tracing` Event
     BadTracingFormat {
-        source: Box<dyn std::error::Error>,
+        source: Box<dyn std::error::Error + Send + Sync + 'static>,
         back: Backtrace,
     },
     /// Failed to fetch the current executable (via std::env)
