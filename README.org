@@ -47,9 +47,9 @@ To talk to a local syslog daemon over UDP:
       registry::Registry,
   };
 
-  // Setup the subsriber...
+  // Setup the subscriber...
   let subscriber = Registry::default()
-      .with(Layer::<Layer::<tracing_subscriber::Registry, Rfc5424, TrivialTracingFormatter, UdpTransport>::try_default().unwrap());
+      .with(Layer::<Registry, Rfc5424, TrivialTracingFormatter, UdpTransport>::try_default().unwrap());
   // and install it.
   let _guard = tracing::subscriber::set_default(subscriber);
 
@@ -62,15 +62,38 @@ To talk to a local Unix socket:
 
 #+BEGIN_SRC rust
   use tracing::info;
-  use tracing_rfc_5424::{rfc3164::Rfc3164, tracing::TrivialTracingFormatter, transport::UnixSocket};
+  use tracing_rfc_5424::{
+      layer::Layer, rfc3164::Rfc3164, tracing::TrivialTracingFormatter, transport::UnixSocket
+  };
   use tracing_subscriber::{
       layer::SubscriberExt, // Needed to get `with()`
       registry::Registry,
   };
 
-    // Setup the subsriber...
+  // Setup the subscriber...
   let subscriber = subscriber
-      .with(tracing_rfc_5424::layer::Layer::<Layer::<tracing_subscriber::Registry, Rfc3164, TrivialTracingFormatter, UnixSocket>::try_default().unwrap());
+      .with(Layer::<Registry, Rfc3164, TrivialTracingFormatter, UnixSocket>::try_default().unwrap());
+  // and install it.
+  let _guard = tracing::subscriber::set_default(subscriber);
+
+  info!("Hello, world!");
+#+END_SRC
+
+To talk to a local TCP socket:
+
+#+BEGIN_SRC rust
+  use tracing::info;
+  use tracing_rfc_5424::{
+      layer::Layer, transport::TcpSocket
+  };
+  use tracing_subscriber::{
+      layer::SubscriberExt, // Needed to get `with()`
+      registry::Registry,
+  };
+
+  // Setup the subscriber...
+  let subscriber = subscriber
+      .with(Layer::with_transport(TcpTransport::try_default().unwrap());
   // and install it.
   let _guard = tracing::subscriber::set_default(subscriber);
 
