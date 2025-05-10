@@ -1,3 +1,27 @@
+2025-05-09  Michael Herstine  <sp1ff@pobox.com>
+
+	Cut release 0.1.4
+
+2025-05-09  Michael Herstine  <sp1ff@pobox.com>
+
+	Update the codebase ahead of 0.1.4.
+	This patch does a few things:
+
+	    - updates the copyright statements throughout
+	    - allows the `clippy::uninlined_format_args` lint, which doesn't
+	      fire for me locally on my dev machine, but *does* in CI (?)
+	    - update the pinned version of rust from 1.69 to 1.82 due to
+	      the backtrace dependency
+
+2024-12-30  Michael  <sp1ff@pobox.com>
+
+	Merge pull request #10 from elrafoon/fix-target-x86_64-pc-windows-gnu
+	fix: build for target x86_64-pc-windows-gnu
+
+2024-12-12  Stanislav Ravas  <ravas@tind.sk>
+
+	fix: build for target x86_64-pc-windows-gnu
+
 2024-12-04  Michael Herstine  <sp1ff@pobox.com>
 
 	Cut release 0.1.3
