@@ -1,4 +1,4 @@
-// Copyright (C) 2022 Michael Herstine <sp1ff@pobox.com>
+// Copyright (C) 2022-2025 Michael Herstine <sp1ff@pobox.com>
 //
 // This file is part of syslog-tracing.
 //

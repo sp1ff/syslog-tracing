@@ -25,7 +25,7 @@ jobs:
         include:
         - rust-build: pinned
           os: ubuntu-22.04
-          rust: 1.69
+          rust: 1.82
         - rust-build: stable
           os: ubuntu-22.04
           rust: stable
