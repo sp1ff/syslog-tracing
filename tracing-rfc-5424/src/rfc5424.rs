@@ -269,6 +269,88 @@ mod test_names {
         let v: Vec<u8> = x.into();
         assert!(AppName::new(v).is_ok());
     }
+
+    #[test]
+    fn test_parsing_structured_data() {
+        use syslog_rfc5424::parse_message;
+        use tracing::callsite::Callsite;
+
+        // Create a formatter with all structured data fields enabled
+        let formatter = Rfc5424::builder()
+            .include_target(true)
+            .include_module(true)
+            .include_source_location(true)
+            .build();
+
+        // Create static metadata using the same pattern as the layer tests
+        struct TestCallsite {
+            meta: &'static tracing::Metadata<'static>,
+        }
+        impl TestCallsite {
+            const fn new(meta: &'static tracing::Metadata<'static>) -> Self {
+                TestCallsite { meta }
+            }
+        }
+        impl tracing::callsite::Callsite for TestCallsite {
+            fn set_interest(&self, _interest: tracing::subscriber::Interest) {}
+            fn metadata(&self) -> &tracing::Metadata<'_> {
+                self.meta
+            }
+        }
+
+        static CALLSITE: TestCallsite = {
+            static METADATA: tracing::Metadata = tracing::Metadata::new(
+                "test_event",
+                "test_target",
+                tracing::Level::INFO,
+                Some(file!()),
+                Some(line!()),
+                Some("test::module::path"),
+                tracing::field::FieldSet::new(&[], tracing_core::callsite::Identifier(&CALLSITE)),
+                tracing_core::metadata::Kind::EVENT,
+            );
+            TestCallsite::new(&METADATA)
+        };
+
+        // Format a message using the static metadata
+        let output = formatter
+            .format(Level::LOG_INFO, "test message", None, CALLSITE.metadata())
+            .unwrap();
+
+        // Convert to string for parsing
+        let message_str = std::str::from_utf8(&output).unwrap();
+        println!("Generated message: {}", message_str);
+
+        // Parse the message
+        let parsed = parse_message(message_str).expect("Failed to parse generated message");
+
+        // Verify basic fields
+        assert_eq!(parsed.msg, "test message");
+
+        // Print out the structured data to see what we got
+        println!("Structured data: {:?}", parsed.sd);
+
+        // The sd.find_tuple method takes both the SD-ID and the parameter ID
+        // Verify we can access all the metadata fields
+        let target_value = parsed.sd.find_tuple("meta", "target");
+        assert!(target_value.is_some(), "target parameter not found");
+        assert_eq!(target_value.unwrap(), "test_target");
+
+        let module_value = parsed.sd.find_tuple("meta", "module");
+        assert!(module_value.is_some(), "module parameter not found");
+        assert_eq!(module_value.unwrap(), "test::module::path");
+
+        let file_value = parsed.sd.find_tuple("meta", "file");
+        assert!(file_value.is_some(), "file parameter not found");
+        // The file will be the actual source file name
+        assert!(file_value.unwrap().ends_with("rfc5424.rs"));
+
+        let line_value = parsed.sd.find_tuple("meta", "line");
+        assert!(line_value.is_some(), "line parameter not found");
+        // Verify it matches the line from the metadata
+        let expected_line = CALLSITE.metadata().line().unwrap();
+        assert_eq!(line_value.unwrap(), &expected_line.to_string());
+    }
 }
 
 /// A string with the additional constraint contstraing that it is less than 129 bytes of ASCII.
@@ -324,6 +406,9 @@ pub struct Rfc5424 {
     appname: AppName,
     pid: ProcId,
     with_bom: bool,
+    include_target: bool,
+    include_module: bool,
+    include_source_location: bool,
 }
 
 impl std::default::Default for Rfc5424 {
@@ -334,6 +419,9 @@ impl std::default::Default for Rfc5424 {
             appname: AppName::default(),
             pid: ProcId::default(),
             with_bom: false,
+            include_target: false,
+            include_module: false,
+            include_source_location: false,
         }
     }
 }
@@ -367,6 +455,18 @@ impl Rfc5424Builder {
         self.imp.with_bom = with_bom;
         self
     }
+    pub fn include_target(mut self, include_target: bool) -> Self {
+        self.imp.include_target = include_target;
+        self
+    }
+    pub fn include_module(mut self, include_module: bool) -> Self {
+        self.imp.include_module = include_module;
+        self
+    }
+    pub fn include_source_location(mut self, include_source_location: bool) -> Self {
+        self.imp.include_source_location = include_source_location;
+        self
+    }
     pub fn build(self) -> Rfc5424 {
         self.imp
     }
@@ -388,6 +488,7 @@ impl SyslogFormatter for Rfc5424 {
         level: Level,
         msg: &str,
         timestamp: Option<DateTime<Utc>>,
+        metadata: &'static tracing_core::Metadata<'static>,
     ) -> Result<Self::Output> {
         let mut buf = format!(
             "<{}>1 {} ",
@@ -401,10 +502,59 @@ impl SyslogFormatter for Rfc5424 {
         use bytes::buf::BufMut;
         buf.put_slice(&self.hostname.0);
 
-        buf.put_slice(format!(" {} {} - - ", self.appname, self.pid).as_bytes());
+        buf.put_slice(format!(" {} {} - ", self.appname, self.pid).as_bytes());
+
+        // Format STRUCTURED-DATA according to RFC 5424
+        // Format: [SD-ID SD-PARAM*]
+        // SD-PARAM: PARAM-NAME="PARAM-VALUE"
+
+        // Include structured data only if explicitly enabled
+        if self.include_target || self.include_module || self.include_source_location {
+            let target = metadata.target();
+            let module = metadata.module_path();
+            let has_target = self.include_target && !target.is_empty();
+            let has_module = self.include_module && module.is_some();
+            let has_location = self.include_source_location && (metadata.file().is_some() || metadata.line().is_some());
+
+            if has_target || has_module || has_location {
+                buf.put_slice(b"[meta");
+
+                // Optionally include target
+                if has_target {
+                    let escaped = target.replace('\\', "\\\\").replace('"', "\\\"").replace(']', "\\]");
+                    buf.put_slice(format!(" target=\"{}\"", escaped).as_bytes());
+                }
+
+                // Optionally include module path
+                if has_module {
+                    if let Some(module_path) = module {
+                        let escaped = module_path.replace('\\', "\\\\").replace('"', "\\\"").replace(']', "\\]");
+                        buf.put_slice(format!(" module=\"{}\"", escaped).as_bytes());
+                    }
+                }
+
+                // Optionally include file and line
+                if self.include_source_location {
+                    if let Some(file) = metadata.file() {
+                        let escaped = file.replace('\\', "\\\\").replace('"', "\\\"").replace(']', "\\]");
+                        buf.put_slice(format!(" file=\"{}\"", escaped).as_bytes());
+                    }
+                    if let Some(line) = metadata.line() {
+                        buf.put_slice(format!(" line=\"{}\"", line).as_bytes());
+                    }
+                }
+
+                buf.put_u8(b']');
+            } else {
+                buf.put_u8(b'-');
+            }
+        } else {
+            buf.put_u8(b'-');
+        }
+
+        buf.put_u8(b' ');
 
         // From the RFC
-
         // "The character set used in MSG SHOULD be UNICODE, encoded using UTF-8 as specified in
         // [RFC3629].  If the syslog application cannot encode the MSG in Unicode, it MAY use
         // any other encoding."
