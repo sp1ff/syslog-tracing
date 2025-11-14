@@ -251,7 +251,7 @@ where
                         .transport
                         .send(
                             self.syslog_formatter
-                                .format(level, &msg, None)
+                                .format(level, &msg, None, event.metadata())
                                 .map_err(|err| Error::Format {
                                     source: Box::new(err),
                                     back: Backtrace::new(),
@@ -348,6 +348,7 @@ mod smoke {
                     Level::LOG_INFO,
                     "Hello, world!",
                     Some(std::time::UNIX_EPOCH.into()),
+                    CALLSITE.metadata(),
                 )
                 .unwrap();
 
@@ -368,6 +369,7 @@ mod smoke {
                     Level::LOG_INFO,
                     "Hello, 世界!",
                     Some(std::time::UNIX_EPOCH.into()),
+                    CALLSITE.metadata(),
                 )
                 .unwrap();
 
@@ -398,6 +400,7 @@ mod smoke {
                     Level::LOG_INFO,
                     "Hello, world!",
                     Some(std::time::UNIX_EPOCH.into()),
+                    CALLSITE.metadata(),
                 )
                 .unwrap();
 
@@ -414,5 +417,173 @@ mod smoke {
             "{}",
             "Hello, world!"
         ));
+    }
+
+    #[test]
+    fn test_structured_data() {
+        // Test with include_target enabled
+        let f = Rfc5424::builder()
+            .hostname_as_string("bree.local".to_string())
+            .unwrap()
+            .appname_as_string("prototyping".to_string())
+            .unwrap()
+            .pid_as_string("123".to_string())
+            .unwrap()
+            .include_target(true)
+            .build();
+
+        static CALLSITE: TestCallsite = {
+            static METADATA: tracing::Metadata = tracing::Metadata::new(
+                "test event metadata",
+                "test-target",
+                tracing::Level::INFO,
+                Some(file!()),
+                Some(line!()),
+                Some(module_path!()),
+                tracing::field::FieldSet::new(
+                    &["message"],
+                    tracing_core::callsite::Identifier(&CALLSITE),
+                ),
+                tracing_core::metadata::Kind::EVENT,
+            );
+            TestCallsite::new(&METADATA)
+        };
+
+        let rsp: Vec<u8> = f
+            .format(
+                Level::LOG_INFO,
+                "Hello, world!",
+                Some(std::time::UNIX_EPOCH.into()),
+                CALLSITE.metadata(),
+            )
+            .unwrap();
+
+        assert_eq!(
+            std::str::from_utf8(&rsp).unwrap(),
+            "<14>1 1970-01-01T00:00:00+00:00 bree.local prototyping 123 - [meta target=\"test-target\"] Hello, world!"
+        );
+
+        // Test with include_source_location enabled
+        let f_loc = Rfc5424::builder()
+            .hostname_as_string("bree.local".to_string())
+            .unwrap()
+            .appname_as_string("prototyping".to_string())
+            .unwrap()
+            .pid_as_string("123".to_string())
+            .unwrap()
+            .include_source_location(true)
+            .build();
+
+        let rsp: Vec<u8> = f_loc
+            .format(
+                Level::LOG_INFO,
+                "Hello, world!",
+                Some(std::time::UNIX_EPOCH.into()),
+                CALLSITE.metadata(),
+            )
+            .unwrap();
+
+        let output = std::str::from_utf8(&rsp).unwrap();
+        // Should contain file and line but not target
+        let expected_file = CALLSITE.metadata().file().unwrap();
+        let expected_line = CALLSITE.metadata().line().unwrap();
+        let expected = format!(
+            "<14>1 1970-01-01T00:00:00+00:00 bree.local prototyping 123 - [meta file=\"{}\" line=\"{}\"] Hello, world!",
+            expected_file, expected_line
+        );
+        assert_eq!(output, expected);
+
+        // Test with include_module enabled
+        let f_module = Rfc5424::builder()
+            .hostname_as_string("bree.local".to_string())
+            .unwrap()
+            .appname_as_string("prototyping".to_string())
+            .unwrap()
+            .pid_as_string("123".to_string())
+            .unwrap()
+            .include_module(true)
+            .build();
+
+        let rsp: Vec<u8> = f_module
+            .format(
+                Level::LOG_INFO,
+                "Hello, world!",
+                Some(std::time::UNIX_EPOCH.into()),
+                CALLSITE.metadata(),
+            )
+            .unwrap();
+
+        let output = std::str::from_utf8(&rsp).unwrap();
+        // Should contain module but not target or file/line
+        let expected_module = CALLSITE.metadata().module_path().unwrap();
+        let expected = format!(
+            "<14>1 1970-01-01T00:00:00+00:00 bree.local prototyping 123 - [meta module=\"{}\"] Hello, world!",
+            expected_module
+        );
+        assert_eq!(output, expected);
+
+        // Test with both target and source_location enabled
+        let f_both = Rfc5424::builder()
+            .hostname_as_string("bree.local".to_string())
+            .unwrap()
+            .appname_as_string("prototyping".to_string())
+            .unwrap()
+            .pid_as_string("123".to_string())
+            .unwrap()
+            .include_target(true)
+            .include_source_location(true)
+            .build();
+
+        let rsp: Vec<u8> = f_both
+            .format(
+                Level::LOG_INFO,
+                "Hello, world!",
+                Some(std::time::UNIX_EPOCH.into()),
+                CALLSITE.metadata(),
+            )
+            .unwrap();
+
+        let output = std::str::from_utf8(&rsp).unwrap();
+        // Should contain target and location, but not module
+        let expected_file = CALLSITE.metadata().file().unwrap();
+        let expected_line = CALLSITE.metadata().line().unwrap();
+        let expected = format!(
+            "<14>1 1970-01-01T00:00:00+00:00 bree.local prototyping 123 - [meta target=\"test-target\" file=\"{}\" line=\"{}\"] Hello, world!",
+            expected_file, expected_line
+        );
+        assert_eq!(output, expected);
+
+        // Test with all metadata enabled
+        let f_all = Rfc5424::builder()
+            .hostname_as_string("bree.local".to_string())
+            .unwrap()
+            .appname_as_string("prototyping".to_string())
+            .unwrap()
+            .pid_as_string("123".to_string())
+            .unwrap()
+            .include_target(true)
+            .include_module(true)
+            .include_source_location(true)
+            .build();
+
+        let rsp: Vec<u8> = f_all
+            .format(
+                Level::LOG_INFO,
+                "Hello, world!",
+                Some(std::time::UNIX_EPOCH.into()),
+                CALLSITE.metadata(),
+            )
+            .unwrap();
+
+        let output = std::str::from_utf8(&rsp).unwrap();
+        // Should contain all metadata fields
+        let expected_module = CALLSITE.metadata().module_path().unwrap();
+        let expected_file = CALLSITE.metadata().file().unwrap();
+        let expected_line = CALLSITE.metadata().line().unwrap();
+        let expected = format!(
+            "<14>1 1970-01-01T00:00:00+00:00 bree.local prototyping 123 - [meta target=\"test-target\" module=\"{}\" file=\"{}\" line=\"{}\"] Hello, world!",
+            expected_module, expected_file, expected_line
+        );
+        assert_eq!(output, expected);
     }
 }

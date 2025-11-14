@@ -391,6 +391,7 @@ impl SyslogFormatter for Rfc3164 {
         level: Level,
         msg: &str,
         timestamp: Option<DateTime<Utc>>,
+        _metadata: &'static tracing_core::Metadata<'static>,
     ) -> Result<Self::Output> {
         let mut buf = format!(
             "<{}>{} ",

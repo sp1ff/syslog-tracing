@@ -21,3 +21,6 @@ local-ip-address = "0.4.5"
 tracing = "0.1.35"
 tracing-core = "0.1.28"
 tracing-subscriber = "0.3.15"
+
+[dev-dependencies]
+syslog_rfc5424 = "0.10"
