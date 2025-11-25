@@ -72,9 +72,9 @@ type StdResult<T, E> = std::result::Result<T, E>;
 ///   characters upon reception.  For example, it might change them into an escape sequence (e.g.,
 ///   value 0 may be changed to "\0").  A syslog application SHOULD NOT modify any other octet values.
 ///
-/// In other words, the two RFCs see the "messaage" as free-form; their differences seem to
+/// In other words, the two RFCs see the "message" as free-form; their differences seem to
 /// come-down to textual encoding. Therefore, this trait concerns itself simply with translating
-/// from [`tracing`] entities to a UTF-8-encoded messages. Downstream, particular implementatinos can do
+/// from [`tracing`] entities to a UTF-8-encoded messages. Downstream, particular implementations can do
 /// as they see fit with it, enabling code like:
 ///
 /// ```text

@@ -253,7 +253,7 @@ impl std::default::Default for AppName {
 }
 
 #[cfg(test)]
-mod test {
+mod test_names {
 
     use super::*;
 
@@ -392,7 +392,9 @@ impl SyslogFormatter for Rfc5424 {
         let mut buf = format!(
             "<{}>1 {} ",
             self.facility as u8 | level as u8,
-            timestamp.unwrap_or(Utc::now()).to_rfc3339()
+            timestamp
+                .unwrap_or(Utc::now())
+                .to_rfc3339_opts(SecondsFormat::Micros, false)
         )
         .into_bytes();
 
@@ -419,5 +421,28 @@ impl SyslogFormatter for Rfc5424 {
         buf.put_slice(msg.as_bytes());
 
         Ok(buf)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_against_issue_014_regression() {
+        let test_message = String::from_utf8(Rfc5424::builder()
+            .facility(Facility::LOG_USER)
+            .hostname_as_string("bree".to_owned())
+            .unwrap(/* known good */)
+            .appname_as_string("unit test suite".to_owned())
+            .unwrap(/* known good */)
+            .build()
+            .format(Level::LOG_NOTICE, "This is a test message; its timestamp had better not have more than 6 digits in the fractional seconds place", None)
+            .unwrap(/* known good */))
+            .unwrap(/* known good */);
+        eprintln!("Test message: {test_message}\n");
+        let i = test_message.find('.').unwrap(/* known good */);
+        let j = test_message.find('+').unwrap(/* known good */);
+        assert!(j - i - 1 <= 6);
     }
 }

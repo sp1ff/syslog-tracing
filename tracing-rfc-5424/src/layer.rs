@@ -353,7 +353,7 @@ mod smoke {
 
             assert_eq!(
                 std::str::from_utf8(&rsp).unwrap(),
-                "<14>1 1970-01-01T00:00:00+00:00 bree.local prototyping 123 - - Hello, world!"
+                "<14>1 1970-01-01T00:00:00.000000+00:00 bree.local prototyping 123 - - Hello, world!"
             );
         })(tracing::valueset!(
             CALLSITE.metadata().fields(),
@@ -373,7 +373,7 @@ mod smoke {
 
             assert_eq!(
                 std::str::from_utf8(&rsp).unwrap(),
-                "<14>1 1970-01-01T00:00:00+00:00 bree.local prototyping 123 - - Hello, 世界!"
+                "<14>1 1970-01-01T00:00:00.000000+00:00 bree.local prototyping 123 - - Hello, 世界!"
             );
         })(tracing::valueset!(
             CALLSITE.metadata().fields(),
@@ -402,7 +402,7 @@ mod smoke {
                 .unwrap();
 
             let mut golden =
-                Vec::from("<14>1 1970-01-01T00:00:00+00:00 bree.local prototyping 123 - - ");
+                Vec::from("<14>1 1970-01-01T00:00:00.000000+00:00 bree.local prototyping 123 - - ");
             golden.push(0xef_u8);
             golden.push(0xbb_u8);
             golden.push(0xbf_u8);
