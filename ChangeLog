@@ -1,3 +1,18 @@
+2025-11-28  Michael Herstine  <sp1ff@pobox.com>
+
+	Cut release 0.1.5
+
+2025-11-25  Michael Herstine  <sp1ff@pobox.com>
+
+	Fix issue #14.
+	Switch from `to_rfc3339()` to `to_rfc3339_opts()` with an argument
+	of `SecondsFormat::Micros`. This will format all timestamps (for
+	the `Rfc5424` formatter with exactly six digits in the subsecond
+	field, compliant with RFC 5424. The prior implementation produced
+	variable-sized fields, up to nine digits (I believe).
+
+	Add a regression test for the bug.
+
 2025-05-09  Michael Herstine  <sp1ff@pobox.com>
 
 	Cut release 0.1.4

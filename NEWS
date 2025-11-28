@@ -6,7 +6,7 @@ syslog-tracing News -- history of user-visible changes         -*- outline -*-
 
 *** fix issue 14: syslog messages aren't strictly conforming
 
-When formatting for RFC 5424, timestamps will now always have six digits.
+When formatting for RFC 5424, timestamps will now always have six digits in the subseconds field.
 ** 0.1.4 build
 
 *** build for target x86_64-pc-windows-gnu
