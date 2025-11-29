@@ -249,7 +249,7 @@ where
         // file/line info for events that originated from the `log` crate.
         // For native tracing events, normalized_metadata() returns None and we use
         // the event's own metadata.
-        // See: https://github.com/tokio-rs/tracing/blob/master/tracing-subscriber/src/fmt/fmt_layer.rs
+        // See: https://github.com/tokio-rs/tracing/blob/9978c3663bcd58de14b3cf089ad24cb63d00a922/tracing-subscriber/src/fmt/format/pretty.rs#L182
         #[cfg(feature = "tracing-log")]
         let normalized_meta = event.normalized_metadata();
         #[cfg(feature = "tracing-log")]
@@ -448,7 +448,7 @@ mod smoke {
             .unwrap()
             .pid_as_string("123".to_string())
             .unwrap()
-            .include_target(true)
+            .with_tracing_target(true)
             .build();
 
         static CALLSITE: TestCallsite = {
@@ -479,7 +479,7 @@ mod smoke {
 
         assert_eq!(
             std::str::from_utf8(&rsp).unwrap(),
-            "<14>1 1970-01-01T00:00:00+00:00 bree.local prototyping 123 - [meta target=\"test-target\"] Hello, world!"
+            "<14>1 1970-01-01T00:00:00.000000+00:00 bree.local prototyping 123 - [tracing-meta@64700 target=\"test-target\"] Hello, world!"
         );
 
         // Test with include_source_location enabled
@@ -490,7 +490,7 @@ mod smoke {
             .unwrap()
             .pid_as_string("123".to_string())
             .unwrap()
-            .include_source_location(true)
+            .with_tracing_source_location(true)
             .build();
 
         let rsp: Vec<u8> = f_loc
@@ -507,7 +507,7 @@ mod smoke {
         let expected_file = CALLSITE.metadata().file().unwrap();
         let expected_line = CALLSITE.metadata().line().unwrap();
         let expected = format!(
-            "<14>1 1970-01-01T00:00:00+00:00 bree.local prototyping 123 - [meta file=\"{}\" line=\"{}\"] Hello, world!",
+            "<14>1 1970-01-01T00:00:00.000000+00:00 bree.local prototyping 123 - [tracing-meta@64700 file=\"{}\" line=\"{}\"] Hello, world!",
             expected_file, expected_line
         );
         assert_eq!(output, expected);
@@ -520,7 +520,7 @@ mod smoke {
             .unwrap()
             .pid_as_string("123".to_string())
             .unwrap()
-            .include_module(true)
+            .with_tracing_module(true)
             .build();
 
         let rsp: Vec<u8> = f_module
@@ -536,7 +536,7 @@ mod smoke {
         // Should contain module but not target or file/line
         let expected_module = CALLSITE.metadata().module_path().unwrap();
         let expected = format!(
-            "<14>1 1970-01-01T00:00:00+00:00 bree.local prototyping 123 - [meta module=\"{}\"] Hello, world!",
+            "<14>1 1970-01-01T00:00:00.000000+00:00 bree.local prototyping 123 - [tracing-meta@64700 module=\"{}\"] Hello, world!",
             expected_module
         );
         assert_eq!(output, expected);
@@ -549,8 +549,8 @@ mod smoke {
             .unwrap()
             .pid_as_string("123".to_string())
             .unwrap()
-            .include_target(true)
-            .include_source_location(true)
+            .with_tracing_target(true)
+            .with_tracing_source_location(true)
             .build();
 
         let rsp: Vec<u8> = f_both
@@ -567,7 +567,7 @@ mod smoke {
         let expected_file = CALLSITE.metadata().file().unwrap();
         let expected_line = CALLSITE.metadata().line().unwrap();
         let expected = format!(
-            "<14>1 1970-01-01T00:00:00+00:00 bree.local prototyping 123 - [meta target=\"test-target\" file=\"{}\" line=\"{}\"] Hello, world!",
+            "<14>1 1970-01-01T00:00:00.000000+00:00 bree.local prototyping 123 - [tracing-meta@64700 target=\"test-target\" file=\"{}\" line=\"{}\"] Hello, world!",
             expected_file, expected_line
         );
         assert_eq!(output, expected);
@@ -580,9 +580,9 @@ mod smoke {
             .unwrap()
             .pid_as_string("123".to_string())
             .unwrap()
-            .include_target(true)
-            .include_module(true)
-            .include_source_location(true)
+            .with_tracing_target(true)
+            .with_tracing_module(true)
+            .with_tracing_source_location(true)
             .build();
 
         let rsp: Vec<u8> = f_all
@@ -600,9 +600,58 @@ mod smoke {
         let expected_file = CALLSITE.metadata().file().unwrap();
         let expected_line = CALLSITE.metadata().line().unwrap();
         let expected = format!(
-            "<14>1 1970-01-01T00:00:00+00:00 bree.local prototyping 123 - [meta target=\"test-target\" module=\"{}\" file=\"{}\" line=\"{}\"] Hello, world!",
+            "<14>1 1970-01-01T00:00:00.000000+00:00 bree.local prototyping 123 - [tracing-meta@64700 target=\"test-target\" module=\"{}\" file=\"{}\" line=\"{}\"] Hello, world!",
             expected_module, expected_file, expected_line
         );
         assert_eq!(output, expected);
+    }
+
+    /// Test for issue #14 regression: timestamp fractional seconds should not exceed 6 digits
+    #[test]
+    fn test_against_issue_014_regression() {
+        use crate::facility::Facility;
+
+        static CALLSITE: TestCallsite = {
+            static METADATA: tracing::Metadata = tracing::Metadata::new(
+                "issue014 test",
+                "test-target",
+                tracing::Level::INFO,
+                Some(file!()),
+                Some(line!()),
+                Some(module_path!()),
+                tracing::field::FieldSet::new(
+                    &["message"],
+                    tracing_core::callsite::Identifier(&CALLSITE),
+                ),
+                tracing_core::metadata::Kind::EVENT,
+            );
+            TestCallsite::new(&METADATA)
+        };
+
+        let test_message = String::from_utf8(
+            Rfc5424::builder()
+                .facility(Facility::LOG_USER)
+                .hostname_as_string("bree".to_owned())
+                .unwrap()
+                .appname_as_string("unit test suite".to_owned())
+                .unwrap()
+                .build()
+                .format(
+                    Level::LOG_NOTICE,
+                    "This is a test message; its timestamp had better not have more than 6 digits in the fractional seconds place",
+                    None,
+                    CALLSITE.metadata(),
+                )
+                .unwrap(),
+        )
+        .unwrap();
+
+        eprintln!("Test message: {test_message}\n");
+        let i = test_message.find('.').unwrap();
+        let j = test_message.find('+').unwrap();
+        assert!(
+            j - i - 1 <= 6,
+            "Fractional seconds should not exceed 6 digits"
+        );
     }
 }

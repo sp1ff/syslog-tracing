@@ -13,10 +13,10 @@ categories = ["development-tools::debugging"]
 
 
 [features]
-default = []
+default = ["tracing-log"]
 # Enable compatibility with the `log` crate. When enabled, events from the `log` crate
 # that are bridged via tracing-log will have their file/line metadata preserved.
-tracing-log = ["dep:tracing-log"]
+tracing-log = ["dep:tracing-log", "tracing-subscriber/tracing-log"]
 
 [dependencies]
 backtrace = "0.3.66"
@@ -27,7 +27,8 @@ local-ip-address = "0.4.5"
 tracing = "0.1.35"
 tracing-core = "0.1.28"
 tracing-log = { version = "0.2", optional = true }
-tracing-subscriber = "0.3.15"
+tracing-subscriber = { version = "0.3.22", default-features = false, features = ["std"] }
 
 [dev-dependencies]
-syslog_rfc5424 = "0.10"
+syslog_rfc5424 = "0.9"
+tracing-subscriber = { version = "0.3.22", default-features = false, features = ["registry"] }

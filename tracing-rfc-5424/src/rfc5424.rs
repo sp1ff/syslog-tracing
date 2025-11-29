@@ -277,9 +277,9 @@ mod test_names {
 
         // Create a formatter with all structured data fields enabled
         let formatter = Rfc5424::builder()
-            .include_target(true)
-            .include_module(true)
-            .include_source_location(true)
+            .with_tracing_target(true)
+            .with_tracing_module(true)
+            .with_tracing_source_location(true)
             .build();
 
         // Create static metadata using the same pattern as the layer tests
@@ -332,24 +332,89 @@ mod test_names {
 
         // The sd.find_tuple method takes both the SD-ID and the parameter ID
         // Verify we can access all the metadata fields
-        let target_value = parsed.sd.find_tuple("meta", "target");
+        let target_value = parsed.sd.find_tuple("tracing-meta@64700", "target");
         assert!(target_value.is_some(), "target parameter not found");
         assert_eq!(target_value.unwrap(), "test_target");
 
-        let module_value = parsed.sd.find_tuple("meta", "module");
+        let module_value = parsed.sd.find_tuple("tracing-meta@64700", "module");
         assert!(module_value.is_some(), "module parameter not found");
         assert_eq!(module_value.unwrap(), "test::module::path");
 
-        let file_value = parsed.sd.find_tuple("meta", "file");
+        let file_value = parsed.sd.find_tuple("tracing-meta@64700", "file");
         assert!(file_value.is_some(), "file parameter not found");
         // The file will be the actual source file name
         assert!(file_value.unwrap().ends_with("rfc5424.rs"));
 
-        let line_value = parsed.sd.find_tuple("meta", "line");
+        let line_value = parsed.sd.find_tuple("tracing-meta@64700", "line");
         assert!(line_value.is_some(), "line parameter not found");
         // Verify it matches the line from the metadata
         let expected_line = CALLSITE.metadata().line().unwrap();
         assert_eq!(line_value.unwrap(), &expected_line.to_string());
+    }
+
+    #[test]
+    fn test_custom_sdid() {
+        use syslog_rfc5424::parse_message;
+        use tracing::callsite::Callsite;
+
+        // Create a formatter with a custom SD-ID
+        let formatter = Rfc5424::builder()
+            .with_tracing_metadata_sdid("custom@12345".to_string())
+            .with_tracing_target(true)
+            .build();
+
+        struct TestCallsite {
+            meta: &'static tracing::Metadata<'static>,
+        }
+        impl TestCallsite {
+            const fn new(meta: &'static tracing::Metadata<'static>) -> Self {
+                TestCallsite { meta }
+            }
+        }
+        impl tracing::callsite::Callsite for TestCallsite {
+            fn set_interest(&self, _interest: tracing::subscriber::Interest) {}
+            fn metadata(&self) -> &tracing::Metadata<'_> {
+                self.meta
+            }
+        }
+
+        static CALLSITE: TestCallsite = {
+            static METADATA: tracing::Metadata = tracing::Metadata::new(
+                "test_event",
+                "test_target",
+                tracing::Level::INFO,
+                Some(file!()),
+                Some(line!()),
+                Some("test::module::path"),
+                tracing::field::FieldSet::new(&[], tracing_core::callsite::Identifier(&CALLSITE)),
+                tracing_core::metadata::Kind::EVENT,
+            );
+            TestCallsite::new(&METADATA)
+        };
+
+        let output = formatter
+            .format(Level::LOG_INFO, "test message", None, CALLSITE.metadata())
+            .unwrap();
+
+        let message_str = std::str::from_utf8(&output).unwrap();
+        println!("Generated message with custom SD-ID: {}", message_str);
+
+        let parsed = parse_message(message_str).expect("Failed to parse generated message");
+
+        // Verify the custom SD-ID is used
+        let target_value = parsed.sd.find_tuple("custom@12345", "target");
+        assert!(
+            target_value.is_some(),
+            "target parameter not found with custom SD-ID"
+        );
+        assert_eq!(target_value.unwrap(), "test_target");
+
+        // Verify the default SD-ID is NOT used
+        let default_target = parsed.sd.find_tuple("tracing-meta@64700", "target");
+        assert!(
+            default_target.is_none(),
+            "default SD-ID should not be present"
+        );
     }
 }
 
@@ -461,14 +526,17 @@ impl Rfc5424Builder {
     }
     /// Override the SD-ID used with tracing metadata. By default it is "tracing-meta@64700"
     pub fn with_tracing_metadata_sdid(mut self, sd_id: String) -> Self {
-        self.imp.with_tracing_metadata.get_or_insert_default().sd_id = sd_id;
+        self.imp
+            .with_tracing_metadata
+            .get_or_insert_with(Default::default)
+            .sd_id = sd_id;
         self
     }
     /// Send the "target" with each tracing event, as part of the tracing metadata
     pub fn with_tracing_target(mut self, with_target: bool) -> Self {
         self.imp
             .with_tracing_metadata
-            .get_or_insert_default()
+            .get_or_insert_with(Default::default)
             .target = with_target;
         self
     }
@@ -476,7 +544,7 @@ impl Rfc5424Builder {
     pub fn with_tracing_module(mut self, with_module: bool) -> Self {
         self.imp
             .with_tracing_metadata
-            .get_or_insert_default()
+            .get_or_insert_with(Default::default)
             .module = with_module;
         self
     }
@@ -484,7 +552,7 @@ impl Rfc5424Builder {
     pub fn with_tracing_source_location(mut self, with_source_location: bool) -> Self {
         self.imp
             .with_tracing_metadata
-            .get_or_insert_default()
+            .get_or_insert_with(Default::default)
             .source_location = with_source_location;
         self
     }
@@ -539,13 +607,14 @@ impl SyslogFormatter for Rfc5424 {
                 && (metadata.file().is_some() || metadata.line().is_some());
 
             if has_target || has_module || has_location {
-                let sdid = if !with_tracing_metadata.sdid.is_empty() {
-                    with_tracing_metadata.sdid.as_str()
+                let sdid = if !with_tracing_metadata.sd_id.is_empty() {
+                    with_tracing_metadata.sd_id.as_str()
                 } else {
                     "tracing-meta@64700"
                 };
 
-                buf.put_slice(b"[{sdid}");
+                buf.put_u8(b'[');
+                buf.put_slice(sdid.as_bytes());
 
                 // Optionally include target
                 if has_target {
@@ -568,7 +637,7 @@ impl SyslogFormatter for Rfc5424 {
                 }
 
                 // Optionally include file and line
-                if self.include_source_location {
+                if with_tracing_metadata.source_location {
                     if let Some(file) = metadata.file() {
                         let escaped = file
                             .replace('\\', "\\\\")
@@ -608,28 +677,5 @@ impl SyslogFormatter for Rfc5424 {
         buf.put_slice(msg.as_bytes());
 
         Ok(buf)
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use super::*;
-
-    #[test]
-    fn test_against_issue_014_regression() {
-        let test_message = String::from_utf8(Rfc5424::builder()
-            .facility(Facility::LOG_USER)
-            .hostname_as_string("bree".to_owned())
-            .unwrap(/* known good */)
-            .appname_as_string("unit test suite".to_owned())
-            .unwrap(/* known good */)
-            .build()
-            .format(Level::LOG_NOTICE, "This is a test message; its timestamp had better not have more than 6 digits in the fractional seconds place", None)
-            .unwrap(/* known good */))
-            .unwrap(/* known good */);
-        eprintln!("Test message: {test_message}\n");
-        let i = test_message.find('.').unwrap(/* known good */);
-        let j = test_message.find('+').unwrap(/* known good */);
-        assert!(j - i - 1 <= 6);
     }
 }
