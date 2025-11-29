@@ -37,6 +37,13 @@ use backtrace::Backtrace;
 use tracing::Event;
 use tracing_subscriber::layer::Context;
 
+// When the tracing-log feature is enabled, use NormalizeEvent to extract file/line metadata
+// from events that originated from the `log` crate. This follows the same pattern used by
+// tracing-subscriber's fmt layer.
+// See: https://github.com/tokio-rs/tracing/blob/master/tracing-subscriber/src/fmt/fmt_layer.rs
+#[cfg(feature = "tracing-log")]
+use tracing_log::NormalizeEvent;
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 //                                       module error type                                        //
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -238,6 +245,18 @@ where
     T: Transport<F1> + 'static,
 {
     fn on_event(&self, event: &Event<'_>, ctx: Context<'_, S>) {
+        // When the tracing-log feature is enabled, use normalized_metadata() to get
+        // file/line info for events that originated from the `log` crate.
+        // For native tracing events, normalized_metadata() returns None and we use
+        // the event's own metadata.
+        // See: https://github.com/tokio-rs/tracing/blob/master/tracing-subscriber/src/fmt/fmt_layer.rs
+        #[cfg(feature = "tracing-log")]
+        let normalized_meta = event.normalized_metadata();
+        #[cfg(feature = "tracing-log")]
+        let meta = normalized_meta.as_ref().unwrap_or_else(|| event.metadata());
+        #[cfg(not(feature = "tracing-log"))]
+        let meta = event.metadata();
+
         self.tracing_formatter
             .on_event(event, ctx) // :=> StdResult<Option<(String, Level)>, <F1 as SyslogFormatter>::Error>
             .map_err(|err| Error::Format {
@@ -251,7 +270,7 @@ where
                         .transport
                         .send(
                             self.syslog_formatter
-                                .format(level, &msg, None, event.metadata())
+                                .format(level, &msg, None, meta)
                                 .map_err(|err| Error::Format {
                                     source: Box::new(err),
                                     back: Backtrace::new(),
