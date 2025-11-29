@@ -406,9 +406,15 @@ pub struct Rfc5424 {
     appname: AppName,
     pid: ProcId,
     with_bom: bool,
-    include_target: bool,
-    include_module: bool,
-    include_source_location: bool,
+    with_tracing_metadata: Option<TracingMetadata>,
+}
+
+#[derive(Default)]
+struct TracingMetadata {
+    sd_id: String,
+    target: bool,
+    module: bool,
+    source_location: bool,
 }
 
 impl std::default::Default for Rfc5424 {
@@ -419,9 +425,7 @@ impl std::default::Default for Rfc5424 {
             appname: AppName::default(),
             pid: ProcId::default(),
             with_bom: false,
-            include_target: false,
-            include_module: false,
-            include_source_location: false,
+            with_tracing_metadata: None,
         }
     }
 }
@@ -455,16 +459,33 @@ impl Rfc5424Builder {
         self.imp.with_bom = with_bom;
         self
     }
-    pub fn include_target(mut self, include_target: bool) -> Self {
-        self.imp.include_target = include_target;
+    /// Override the SD-ID used with tracing metadata. By default it is "tracing-meta@64700"
+    pub fn with_tracing_metadata_sdid(mut self, sd_id: String) -> Self {
+        self.imp.with_tracing_metadata.get_or_insert_default().sd_id = sd_id;
         self
     }
-    pub fn include_module(mut self, include_module: bool) -> Self {
-        self.imp.include_module = include_module;
+    /// Send the "target" with each tracing event, as part of the tracing metadata
+    pub fn with_tracing_target(mut self, with_target: bool) -> Self {
+        self.imp
+            .with_tracing_metadata
+            .get_or_insert_default()
+            .target = with_target;
         self
     }
-    pub fn include_source_location(mut self, include_source_location: bool) -> Self {
-        self.imp.include_source_location = include_source_location;
+    /// Send the "module" with each tracing event, as part of the tracing metadata
+    pub fn with_tracing_module(mut self, with_module: bool) -> Self {
+        self.imp
+            .with_tracing_metadata
+            .get_or_insert_default()
+            .module = with_module;
+        self
+    }
+    /// Send the file and line number with each tracing event, as part of the tracing metadata
+    pub fn with_tracing_source_location(mut self, with_source_location: bool) -> Self {
+        self.imp
+            .with_tracing_metadata
+            .get_or_insert_default()
+            .source_location = with_source_location;
         self
     }
     pub fn build(self) -> Rfc5424 {
@@ -509,26 +530,39 @@ impl SyslogFormatter for Rfc5424 {
         // SD-PARAM: PARAM-NAME="PARAM-VALUE"
 
         // Include structured data only if explicitly enabled
-        if self.include_target || self.include_module || self.include_source_location {
+        if let Some(with_tracing_metadata) = self.with_tracing_metadata.as_ref() {
             let target = metadata.target();
             let module = metadata.module_path();
-            let has_target = self.include_target && !target.is_empty();
-            let has_module = self.include_module && module.is_some();
-            let has_location = self.include_source_location && (metadata.file().is_some() || metadata.line().is_some());
+            let has_target = with_tracing_metadata.target && !target.is_empty();
+            let has_module = with_tracing_metadata.module && module.is_some();
+            let has_location = with_tracing_metadata.source_location
+                && (metadata.file().is_some() || metadata.line().is_some());
 
             if has_target || has_module || has_location {
-                buf.put_slice(b"[meta");
+                let sdid = if !with_tracing_metadata.sdid.is_empty() {
+                    with_tracing_metadata.sdid.as_str()
+                } else {
+                    "tracing-meta@64700"
+                };
+
+                buf.put_slice(b"[{sdid}");
 
                 // Optionally include target
                 if has_target {
-                    let escaped = target.replace('\\', "\\\\").replace('"', "\\\"").replace(']', "\\]");
+                    let escaped = target
+                        .replace('\\', "\\\\")
+                        .replace('"', "\\\"")
+                        .replace(']', "\\]");
                     buf.put_slice(format!(" target=\"{}\"", escaped).as_bytes());
                 }
 
                 // Optionally include module path
                 if has_module {
                     if let Some(module_path) = module {
-                        let escaped = module_path.replace('\\', "\\\\").replace('"', "\\\"").replace(']', "\\]");
+                        let escaped = module_path
+                            .replace('\\', "\\\\")
+                            .replace('"', "\\\"")
+                            .replace(']', "\\]");
                         buf.put_slice(format!(" module=\"{}\"", escaped).as_bytes());
                     }
                 }
@@ -536,7 +570,10 @@ impl SyslogFormatter for Rfc5424 {
                 // Optionally include file and line
                 if self.include_source_location {
                     if let Some(file) = metadata.file() {
-                        let escaped = file.replace('\\', "\\\\").replace('"', "\\\"").replace(']', "\\]");
+                        let escaped = file
+                            .replace('\\', "\\\\")
+                            .replace('"', "\\\"")
+                            .replace(']', "\\]");
                         buf.put_slice(format!(" file=\"{}\"", escaped).as_bytes());
                     }
                     if let Some(line) = metadata.line() {
