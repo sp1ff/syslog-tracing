@@ -448,7 +448,7 @@ mod smoke {
             .unwrap()
             .pid_as_string("123".to_string())
             .unwrap()
-            .include_target(true)
+            .with_tracing_target(true)
             .build();
 
         static CALLSITE: TestCallsite = {
@@ -479,7 +479,7 @@ mod smoke {
 
         assert_eq!(
             std::str::from_utf8(&rsp).unwrap(),
-            "<14>1 1970-01-01T00:00:00+00:00 bree.local prototyping 123 - [meta target=\"test-target\"] Hello, world!"
+            "<14>1 1970-01-01T00:00:00+00:00 bree.local prototyping 123 - [tracing-meta@64700 target=\"test-target\"] Hello, world!"
         );
 
         // Test with include_source_location enabled
@@ -490,7 +490,7 @@ mod smoke {
             .unwrap()
             .pid_as_string("123".to_string())
             .unwrap()
-            .include_source_location(true)
+            .with_tracing_source_location(true)
             .build();
 
         let rsp: Vec<u8> = f_loc
@@ -507,7 +507,7 @@ mod smoke {
         let expected_file = CALLSITE.metadata().file().unwrap();
         let expected_line = CALLSITE.metadata().line().unwrap();
         let expected = format!(
-            "<14>1 1970-01-01T00:00:00+00:00 bree.local prototyping 123 - [meta file=\"{}\" line=\"{}\"] Hello, world!",
+            "<14>1 1970-01-01T00:00:00+00:00 bree.local prototyping 123 - [tracing-meta@64700 file=\"{}\" line=\"{}\"] Hello, world!",
             expected_file, expected_line
         );
         assert_eq!(output, expected);
@@ -520,7 +520,7 @@ mod smoke {
             .unwrap()
             .pid_as_string("123".to_string())
             .unwrap()
-            .include_module(true)
+            .with_tracing_module(true)
             .build();
 
         let rsp: Vec<u8> = f_module
@@ -536,7 +536,7 @@ mod smoke {
         // Should contain module but not target or file/line
         let expected_module = CALLSITE.metadata().module_path().unwrap();
         let expected = format!(
-            "<14>1 1970-01-01T00:00:00+00:00 bree.local prototyping 123 - [meta module=\"{}\"] Hello, world!",
+            "<14>1 1970-01-01T00:00:00+00:00 bree.local prototyping 123 - [tracing-meta@64700 module=\"{}\"] Hello, world!",
             expected_module
         );
         assert_eq!(output, expected);
@@ -549,8 +549,8 @@ mod smoke {
             .unwrap()
             .pid_as_string("123".to_string())
             .unwrap()
-            .include_target(true)
-            .include_source_location(true)
+            .with_tracing_target(true)
+            .with_tracing_source_location(true)
             .build();
 
         let rsp: Vec<u8> = f_both
@@ -567,7 +567,7 @@ mod smoke {
         let expected_file = CALLSITE.metadata().file().unwrap();
         let expected_line = CALLSITE.metadata().line().unwrap();
         let expected = format!(
-            "<14>1 1970-01-01T00:00:00+00:00 bree.local prototyping 123 - [meta target=\"test-target\" file=\"{}\" line=\"{}\"] Hello, world!",
+            "<14>1 1970-01-01T00:00:00+00:00 bree.local prototyping 123 - [tracing-meta@64700 target=\"test-target\" file=\"{}\" line=\"{}\"] Hello, world!",
             expected_file, expected_line
         );
         assert_eq!(output, expected);
@@ -580,9 +580,9 @@ mod smoke {
             .unwrap()
             .pid_as_string("123".to_string())
             .unwrap()
-            .include_target(true)
-            .include_module(true)
-            .include_source_location(true)
+            .with_tracing_target(true)
+            .with_tracing_module(true)
+            .with_tracing_source_location(true)
             .build();
 
         let rsp: Vec<u8> = f_all
@@ -600,7 +600,7 @@ mod smoke {
         let expected_file = CALLSITE.metadata().file().unwrap();
         let expected_line = CALLSITE.metadata().line().unwrap();
         let expected = format!(
-            "<14>1 1970-01-01T00:00:00+00:00 bree.local prototyping 123 - [meta target=\"test-target\" module=\"{}\" file=\"{}\" line=\"{}\"] Hello, world!",
+            "<14>1 1970-01-01T00:00:00+00:00 bree.local prototyping 123 - [tracing-meta@64700 target=\"test-target\" module=\"{}\" file=\"{}\" line=\"{}\"] Hello, world!",
             expected_module, expected_file, expected_line
         );
         assert_eq!(output, expected);
