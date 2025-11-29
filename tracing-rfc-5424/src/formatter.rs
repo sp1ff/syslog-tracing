@@ -61,5 +61,6 @@ pub trait SyslogFormatter {
         level: Level,
         msg: &str,
         timestamp: Option<DateTime<Utc>>,
+        metadata: &tracing_core::Metadata<'_>,
     ) -> std::result::Result<Self::Output, Self::Error>;
 }
