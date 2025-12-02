@@ -403,12 +403,18 @@ mod test_names {
 
         // Verify the custom SD-ID is used
         let target_value = parsed.sd.find_tuple("custom@12345", "target");
-        assert!(target_value.is_some(), "target parameter not found with custom SD-ID");
+        assert!(
+            target_value.is_some(),
+            "target parameter not found with custom SD-ID"
+        );
         assert_eq!(target_value.unwrap(), "test_target");
 
         // Verify the default SD-ID is NOT used
         let default_target = parsed.sd.find_tuple("tracing-meta@64700", "target");
-        assert!(default_target.is_none(), "default SD-ID should not be present");
+        assert!(
+            default_target.is_none(),
+            "default SD-ID should not be present"
+        );
     }
 }
 
