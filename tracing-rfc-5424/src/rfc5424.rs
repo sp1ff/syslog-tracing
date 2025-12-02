@@ -526,14 +526,17 @@ impl Rfc5424Builder {
     }
     /// Override the SD-ID used with tracing metadata. By default it is "tracing-meta@64700"
     pub fn with_tracing_metadata_sdid(mut self, sd_id: String) -> Self {
-        self.imp.with_tracing_metadata.get_or_insert_default().sd_id = sd_id;
+        self.imp
+            .with_tracing_metadata
+            .get_or_insert_with(Default::default)
+            .sd_id = sd_id;
         self
     }
     /// Send the "target" with each tracing event, as part of the tracing metadata
     pub fn with_tracing_target(mut self, with_target: bool) -> Self {
         self.imp
             .with_tracing_metadata
-            .get_or_insert_default()
+            .get_or_insert_with(Default::default)
             .target = with_target;
         self
     }
@@ -541,7 +544,7 @@ impl Rfc5424Builder {
     pub fn with_tracing_module(mut self, with_module: bool) -> Self {
         self.imp
             .with_tracing_metadata
-            .get_or_insert_default()
+            .get_or_insert_with(Default::default)
             .module = with_module;
         self
     }
@@ -549,7 +552,7 @@ impl Rfc5424Builder {
     pub fn with_tracing_source_location(mut self, with_source_location: bool) -> Self {
         self.imp
             .with_tracing_metadata
-            .get_or_insert_default()
+            .get_or_insert_with(Default::default)
             .source_location = with_source_location;
         self
     }
