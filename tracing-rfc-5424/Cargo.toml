@@ -30,5 +30,5 @@ tracing-log = { version = "0.2", optional = true }
 tracing-subscriber = { version = "0.3.22", default-features = false, features = ["std"] }
 
 [dev-dependencies]
-syslog_rfc5424 = "0.10"
+syslog_rfc5424 = "0.9"
 tracing-subscriber = { version = "0.3.22", default-features = false, features = ["registry"] }
