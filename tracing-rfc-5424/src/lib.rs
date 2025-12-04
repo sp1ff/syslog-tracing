@@ -120,7 +120,12 @@
 //! ```
 //!
 //! Will send the syslog packet to a daemon on port 5514 on some.other.host.
+//!
+//! # Further Reading
+//!
+//! You can find more information on this crate's design & usage [here](_docs).
 
+pub mod _docs;
 #[path = "byte-utils.rs"]
 mod byte_utils;
 pub mod facility;
