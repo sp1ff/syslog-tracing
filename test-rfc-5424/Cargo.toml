@@ -4,6 +4,7 @@ version = "0.1.5"
 edition = "2021"
 
 [dependencies]
+syslog_rfc5424 = "0.9"
 tracing = "0.1.36"
 tracing-rfc-5424 = { version = "0.1", path = "../tracing-rfc-5424"}
 tracing-subscriber = "0.3.15"
