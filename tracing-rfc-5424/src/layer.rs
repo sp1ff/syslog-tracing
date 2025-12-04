@@ -249,7 +249,7 @@ where
         // file/line info for events that originated from the `log` crate.
         // For native tracing events, normalized_metadata() returns None and we use
         // the event's own metadata.
-        // See: https://github.com/tokio-rs/tracing/blob/master/tracing-subscriber/src/fmt/fmt_layer.rs
+        // See: https://github.com/tokio-rs/tracing/blob/9978c3663bcd58de14b3cf089ad24cb63d00a922/tracing-subscriber/src/fmt/format/pretty.rs#L182
         #[cfg(feature = "tracing-log")]
         let normalized_meta = event.normalized_metadata();
         #[cfg(feature = "tracing-log")]
