@@ -2,7 +2,7 @@
 #+DESCRIPTION: A tracing layer that writes to syslog
 #+AUTHOR: Michael Herstine
 #+EMAIL: sp1ff@pobox.com
-#+DATE: <2025-11-28 Fri 07:07>
+#+DATE: <2025-12-04 Thu 16:05>
 #+AUTODATE: t
 #+OPTIONS: toc:nil org-md-headline-style:setext *:t ^:nil
 #+STARTUP: overview
@@ -30,7 +30,7 @@ To add =tracing-rfc-5424= to your crate, say =cargo add tracing-rfc-5424=, or ad
 
 #+BEGIN_SRC toml
   [dependencies]
-  tracing-rfc-5424 = "0.1.5"
+  tracing-rfc-5424 = "0.2"
 #+END_SRC
 
 ** Examples
@@ -87,7 +87,7 @@ To talk to a local Unix socket:
 #+END_SRC
 * Status, Rationale and Roadmap
 
-This is a preliminary release; the version number (0.1.x) is intended to convey that. Additional features to be implemented:
+This is a preliminary release; the version number (0.2.x) is intended to convey that. Additional features to be implemented:
 
   - more testing
   - more support for mapping from [[https://github.com/tokio-rs/tracing][tracing]] primitives (=Event=s & =Span=s) to syslog messages (today, the crate simply uses the "message" field in Events while ignoring Spans altogether)

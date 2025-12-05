@@ -1,5 +1,18 @@
 syslog-tracing News -- history of user-visible changes         -*- outline -*-
 
+* 0.2 builds
+
+** 0.2.0 build
+
+*** User-visible Changes
+
+**** Added a _docs.rs for general documentation
+**** Support for sending tracing metadata (target, file/line, module_path) as syslog structured data
+
+...when using RFC 5424. This can be enabled via the new APIs on the RFC 5424 builder. When enabled, outbound messages will include e.g. `[tracing-metadata@64700 file="foo.rs" line="97"]`, to be consumed downstream. The SD-ID used here can also be customized.
+**** Many unused features of `tracing-subscriber` were turned off
+
+Additionally, `tracing-log` is now an optional dependency of `tracing-rfc5424` rather than a mandatory one, but is on by default for backwards compatibility.
 * 0.1 builds
 
 ** 0.1.5 build

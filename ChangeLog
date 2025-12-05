@@ -1,3 +1,62 @@
+2025-12-04  Michael Herstine  <sp1ff@pobox.com>
+
+	Cut release 0.2.0
+
+	Add a _docs.rs to hold more general documentation
+
+	Merge branch 'cbeck88-optional-tracing-metadata-as-syslog-structured-data'
+
+2025-12-04  Chris Beck  <beck.ct@gmail.com>
+
+	Prep this branch for merge:
+	    - fix tests
+	    - cargo fmt
+	    - respect MSRV of 1.82
+	    - fixup configuration of tracing-subscriber crate to only enable required features
+	    - fix build in edition 2021
+	    - use a permalink for the NormalizeMetadata example
+
+2025-12-02  Chris Beck  <beck.ct@gmail.com>
+
+	use "tracing-meta@64700" as the SD-ID by default, and allow override
+	this also refactored the tracing-metadata related options to be one
+	structure, maybe a little tidier
+
+2025-12-02  Chris Beck  <beck.ct@gmail.com>
+
+	add optional integration with tracing-log
+	tracing-log is a bridge that allows tracing to pick up log messages
+	written by older rust libraries that used the `log` crate facade.
+	the bridge subscribes to log messages and resubmits them as tracing
+	events.
+
+	because of lifetime issues, it can't take the log message file and
+	line numbers and register them directly as file and line numbers of
+	the tracing events. instead it places them as `log.file` and `log.line`
+	in the event metadata. then, when using `tracing-subscriber`, the
+	metadata are "normalized" by repopulating the file and line number
+	information. This normalization is possible when `tracing-log` feature
+	is turned on.
+
+	in this commit we mirror this behavior, so that tracing-rfc-5424 will
+	also make log messages carry this metadata just as well as tracing messages,
+	if the optional `tracing-log` feature is turned on
+
+2025-12-02  Chris Beck  <beck.ct@gmail.com>
+
+	allow sending tracing metadata (target, file/line, module_path) as syslog structured data
+	this adds optional features to pass on more of the metadata from the tracing infrastructure
+	as structured-data, when using RFC-5424 format.
+
+	it doesn't go as far as sending fields and valuesets from tracing events, but still seems
+	like a significant improvement.
+
+	note that `tracing_subscriber` typically defaults to formatting the target
+	with the log message in text logs, so many users are used to seeing that in text logs,
+	but it's not present in the syslog records produced by this crate before this change.
+	in tracing_subscriber, the file and line number are optional defaulting to off.
+	in this PR we make all this stuff default to off, for backwards compatible behavior.
+
 2025-11-28  Michael Herstine  <sp1ff@pobox.com>
 
 	Cut release 0.1.5
