@@ -375,7 +375,7 @@ mod smoke {
                 std::str::from_utf8(&rsp).unwrap(),
                 "<14>1 1970-01-01T00:00:00.000000+00:00 bree.local prototyping 123 - - Hello, world!"
             );
-        })(tracing::valueset!(
+        })(tracing::valueset_all!(
             CALLSITE.metadata().fields(),
             "{}",
             "Hello, world!"
@@ -396,7 +396,7 @@ mod smoke {
                 std::str::from_utf8(&rsp).unwrap(),
                 "<14>1 1970-01-01T00:00:00.000000+00:00 bree.local prototyping 123 - - Hello, 世界!"
             );
-        })(tracing::valueset!(
+        })(tracing::valueset_all!(
             CALLSITE.metadata().fields(),
             "{}",
             "Hello, 世界!"
@@ -431,7 +431,7 @@ mod smoke {
             golden.extend_from_slice("Hello, world!".as_bytes());
 
             assert_eq!(rsp, golden);
-        })(tracing::valueset!(
+        })(tracing::valueset_all!(
             CALLSITE.metadata().fields(),
             "{}",
             "Hello, world!"
