@@ -1,3 +1,13 @@
+2026-01-10  Michael Herstine  <sp1ff@pobox.com>
+
+	Cut release 0.2.1
+
+	s/valueset!/valueset_all!/
+	Our unit tests rely on the undocumented `tracing` macro `valueset!`.
+	`tracing` 0.1.44 (December 18, 2025) introduced a breaking change
+	to this macro. This commit moves us to the the also undocumented
+	`valueset_all!` macro which now works.
+
 2025-12-04  Michael Herstine  <sp1ff@pobox.com>
 
 	Cut release 0.2.0

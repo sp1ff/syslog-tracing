@@ -2,6 +2,13 @@ syslog-tracing News -- history of user-visible changes         -*- outline -*-
 
 * 0.2 builds
 
+** 0.2.1 build
+
+*** Bug fixes
+
+**** `tracing` 0.1.44 breaks the unit tests
+
+Use `valueset_all!` instead of `valueset!`.
 ** 0.2.0 build
 
 *** User-visible Changes
