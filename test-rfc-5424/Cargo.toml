@@ -5,6 +5,8 @@ edition = "2021"
 
 [dependencies]
 syslog_rfc5424 = "0.9"
+time="<0.3.46" # 0.3.46 requires rustc v1.88.0 or better
+time-core="<0.1.8" # ditto
 tracing = "0.1.36"
 tracing-rfc-5424 = { version = "0.2", path = "../tracing-rfc-5424"}
 tracing-subscriber = "0.3.15"
