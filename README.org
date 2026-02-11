@@ -2,7 +2,7 @@
 #+DESCRIPTION: A tracing layer that writes to syslog
 #+AUTHOR: Michael Herstine
 #+EMAIL: sp1ff@pobox.com
-#+DATE: <2025-12-04 Thu 16:05>
+#+DATE: <2026-02-11 Wed 11:47>
 #+AUTODATE: t
 #+OPTIONS: toc:nil org-md-headline-style:setext *:t ^:nil
 #+STARTUP: overview
@@ -80,7 +80,6 @@ To talk to a local Unix socket:
 ** Hacking
 
 #+BEGIN_SRC bash
-  cargo install rusty-tags
   git clone git@github.com:sp1ff/syslog-tracing.git
   cd syslog-tracing
   make all doc check

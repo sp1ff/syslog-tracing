@@ -50,8 +50,7 @@ jobs:
       run: |
         rustup component add clippy
         rustup target add x86_64-unknown-linux-musl
-        sudo apt-get install exuberant-ctags ripgrep
-        cargo install rusty-tags
+        sudo apt-get install ripgrep
 
     - name: Lint
       shell: bash

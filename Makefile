@@ -1,11 +1,10 @@
-.PHONY: all clean check doc tags
+.PHONY: all clean check doc
 
 all: tags doc
 	cargo build
 
 clean:
 	cargo clean
-	rm -f TAGS tags
 
 check:
 	cargo test
@@ -15,8 +14,3 @@ check:
 
 doc:
 	cargo doc
-
-tags:
-	rusty-tags -O TAGS emacs
-	rusty-tags -O tags vi
-
