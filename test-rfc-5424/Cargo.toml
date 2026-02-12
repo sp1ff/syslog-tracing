@@ -4,6 +4,7 @@ version = "0.2.1"
 edition = "2021"
 
 [dependencies]
+deranged = "<0.5.6"
 syslog_rfc5424 = "0.9"
 time="<0.3.46" # 0.3.46 requires rustc v1.88.0 or better
 time-core="<0.1.8" # ditto
